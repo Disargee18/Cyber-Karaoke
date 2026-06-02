@@ -7,12 +7,14 @@ interface MediaCenterProps {
   selectedSongId: string;
   onSongChange: (songId: string) => void;
   onTimeUpdate: (time: number) => void;
+  onLyricsParsed?: (lyrics: { time: number; text: string }[]) => void;
 }
 
 export const MediaCenter: React.FC<MediaCenterProps> = ({
   selectedSongId,
   onSongChange,
   onTimeUpdate,
+  onLyricsParsed,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -410,32 +412,78 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
   };
 
   // -------------------------------------------------------------
-  // --- MOCK YOUTUBE PIPELINE STREAMER -------------------------
+  // --- LIVE YOUTUBE backend STREAMING PIPELINE ----------------
   // -------------------------------------------------------------
-  const handleYtSubmit = (e: React.FormEvent) => {
+  const parseLRC = (textToParse: string): { time: number; text: string }[] => {
+    const lines = textToParse.split('\n');
+    const parsed: { time: number; text: string }[] = [];
+    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
+
+    for (let line of lines) {
+      line = line.trim();
+      const match = timeRegex.exec(line);
+      if (match) {
+        const minutes = parseInt(match[1], 10);
+        const seconds = parseInt(match[2], 10);
+        const milliseconds = parseInt(match[3], 10);
+        
+        const msFactor = match[3].length === 2 ? 100 : 1000;
+        const time = minutes * 60 + seconds + milliseconds / msFactor;
+        const text = line.replace(timeRegex, '').trim();
+
+        parsed.push({ time, text });
+      }
+    }
+    return parsed.sort((a, b) => a.time - b.time);
+  };
+
+  const handleYtSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ytUrl.trim()) return;
 
     setYtStatus('loading');
     
-    // Simulate yt-dlp backend extraction server handshake
-    setTimeout(() => {
-      setYtStatus('streaming');
-      onSongChange('vaporwave-sunset'); // Force load sunset song to simulate success
-      
+    try {
+      // 1. Set the audio source to your live streaming pipe
+      const audioSourceUrl = `http://localhost:3001/api/stream?url=${encodeURIComponent(ytUrl)}`;
       if (audioRef.current) {
-        audioRef.current.src = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3';
+        handleStop(); // Reset current stream
+        onSongChange('custom'); // Flag song selection as custom
+        audioRef.current.src = audioSourceUrl;
         audioRef.current.load();
+        
+        // Calibrate Web Audio context
+        initAudioEngine();
+        
+        // Auto-play the stream
+        await audioRef.current.play();
+        setIsPlaying(true);
       }
-      
-      // Alert notice
-      alert(
-        `📡 YT PIPELINE HANDSHAKE SUCCESSFUL!\n\n` +
-        `Target: ${ytUrl}\n` +
-        `Backend: MOCKED python yt-dlp pipe (128kbps stereo-audio blob)\n` +
-        `Synthesizing pipeline on clientside frontend. Ready to Sing!`
-      );
-    }, 2000);
+
+      // 2. Fetch the automated lyrics from your backend
+      try {
+        const response = await fetch(`http://localhost:3001/api/lyrics?url=${encodeURIComponent(ytUrl)}`);
+        const data = await response.json();
+        
+        if (data.syncedLyrics && onLyricsParsed) {
+          // Pass the time-stamped string directly into your lyric synchronization parser!
+          onLyricsParsed(parseLRC(data.syncedLyrics)); 
+        } else if (onLyricsParsed) {
+          onLyricsParsed([{ time: 0, text: "No synced lyrics found in the free database!" }]);
+        }
+        setYtStatus('streaming');
+      } catch (err) {
+        console.log("Could not load lyrics automatically from backend:", err);
+        if (onLyricsParsed) {
+          onLyricsParsed([{ time: 0, text: "Backend lyrics fetch failed. Paste LRC inside injector!" }]);
+        }
+        setYtStatus('streaming');
+      }
+    } catch (error) {
+      console.error("YouTube streaming handshake failure:", error);
+      setYtStatus('error');
+      alert("❌ PIPELINE HANDSHAKE FAILED!\n\nCheck if your Node.js backend is running at http://localhost:3001 and yt-dlp is installed.");
+    }
   };
 
   // Formatting helper for clock timer

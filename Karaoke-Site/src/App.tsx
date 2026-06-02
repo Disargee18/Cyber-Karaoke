@@ -374,6 +374,7 @@ function App() {
               selectedSongId={selectedSongId}
               onSongChange={setSelectedSongId}
               onTimeUpdate={setCurrentTime}
+              onLyricsParsed={setLyrics}
             />
           </RetroWindow>
         )}
