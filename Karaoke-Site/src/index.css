@@ -174,3 +174,20 @@ html, body, #root {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
+
+/* Winamp scrolling title carousel */
+@keyframes winamp-carousel-anim {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+.winamp-carousel {
+  display: flex;
+  width: max-content;
+  animation: winamp-carousel-anim 16s linear infinite;
+}
+
+.winamp-carousel-item {
+  flex-shrink: 0;
+  padding-right: 64px; /* Space between the repeating song titles */
+}

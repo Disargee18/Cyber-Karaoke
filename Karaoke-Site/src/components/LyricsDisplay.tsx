@@ -9,9 +9,10 @@ interface LyricLine {
 interface LyricsDisplayProps {
   lyrics: LyricLine[];
   currentTime: number;
+  songTitle: string;
 }
 
-export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ lyrics, currentTime }) => {
+export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ lyrics, currentTime, songTitle }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -72,63 +73,75 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ lyrics, currentTim
 
   return (
     <div
-      ref={containerRef}
-      className="h-64 overflow-y-auto overflow-x-hidden relative bg-black/75 px-4 py-32 rounded scroll-smooth select-none"
+      className="relative w-full h-64 bg-black/75 rounded overflow-hidden"
       style={{
         border: '2px solid',
         borderColor: '#555555 #ffffff #ffffff #555555',
-        backgroundImage: 'radial-gradient(circle, rgba(0, 255, 204, 0.05) 1px, transparent 1px)',
-        backgroundSize: '16px 16px',
       }}
     >
-      <div className="flex flex-col gap-6 items-center">
-        {lyrics.map((line, idx) => {
-          const isActive = idx === activeIndex;
-          const isPast = idx < activeIndex;
+      {/* Sticky Neon Song Title Header */}
+      <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-[#200020] via-black to-[#002020] text-[#00ffcc] font-mono text-[9px] font-black text-center py-1.5 border-b border-pink-500/35 z-20 uppercase tracking-widest flex items-center justify-center gap-1.5 shadow-md">
+        <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping shrink-0" />
+        <span className="truncate max-w-[85%]">{songTitle}</span>
+      </div>
 
-          return (
-            <div
-              key={idx}
-              ref={(el) => {
-                lineRefs.current[idx] = el;
-              }}
-              className={`w-full max-w-[90%] text-center py-2 px-3 rounded font-mono text-sm sm:text-base tracking-wide transition-all duration-300 flex flex-col items-center justify-center ${
-                isActive
-                  ? 'scale-110 md:scale-115 font-black text-transparent bg-clip-text bg-gradient-to-r from-[#00ffcc] via-[#ffff00] to-[#ff00ff] drop-shadow-[0_0_8px_rgba(0,255,204,0.7)] z-10'
-                  : isPast
-                  ? 'opacity-40 scale-95 blur-[0.4px] text-pink-400 font-semibold'
-                  : 'opacity-70 text-gray-300 font-medium'
-              }`}
-            >
-              {/* Active Marker Arrow */}
-              {isActive && (
-                <div className="flex items-center gap-1 text-[9px] font-bold text-yellow-400 uppercase tracking-widest mb-1.5 animate-bounce select-none">
-                  <Music size={10} className="animate-spin text-cyan-400" />
-                  <span>★ SING NOW ★</span>
-                  <Music size={10} className="animate-spin text-pink-400" />
-                </div>
-              )}
+      <div
+        ref={containerRef}
+        className="w-full h-full overflow-y-auto overflow-x-hidden relative px-4 pt-10 pb-32 scroll-smooth select-none"
+        style={{
+          backgroundImage: 'radial-gradient(circle, rgba(0, 255, 204, 0.05) 1px, transparent 1px)',
+          backgroundSize: '16px 16px',
+        }}
+      >
+        <div className="flex flex-col gap-6 items-center">
+          {lyrics.map((line, idx) => {
+            const isActive = idx === activeIndex;
+            const isPast = idx < activeIndex;
 
-              {/* Lyric Text Line */}
-              <span
-                className={`transition-all duration-300 border-b-2 ${
-                  isActive
-                    ? 'border-yellow-400 pb-1.5'
-                    : 'border-transparent'
-                }`}
-                style={{
-                  fontFamily: '"MS Sans Serif", Tahoma, sans-serif',
+            return (
+              <div
+                key={idx}
+                ref={(el) => {
+                  lineRefs.current[idx] = el;
                 }}
+                className={`w-full max-w-[90%] text-center py-2 px-3 rounded font-mono text-sm sm:text-base tracking-wide transition-all duration-300 flex flex-col items-center justify-center ${
+                  isActive
+                    ? 'scale-110 md:scale-115 font-black text-transparent bg-clip-text bg-gradient-to-r from-[#00ffcc] via-[#ffff00] to-[#ff00ff] drop-shadow-[0_0_8px_rgba(0,255,204,0.7)] z-10'
+                    : isPast
+                    ? 'opacity-40 scale-95 blur-[0.4px] text-pink-400 font-semibold'
+                    : 'opacity-70 text-gray-300 font-medium'
+                }`}
               >
-                {line.text}
-              </span>
-            </div>
-          );
-        })}
+                {/* Active Marker Arrow */}
+                {isActive && (
+                  <div className="flex items-center gap-1 text-[9px] font-bold text-yellow-400 uppercase tracking-widest mb-1.5 animate-bounce select-none">
+                    <Music size={10} className="animate-spin text-cyan-400" />
+                    <span>★ SING NOW ★</span>
+                    <Music size={10} className="animate-spin text-pink-400" />
+                  </div>
+                )}
+
+                {/* Lyric Text Line */}
+                <span
+                  className={`transition-all duration-300 border-b-2 ${
+                    isActive
+                      ? 'border-yellow-400 pb-1.5'
+                      : 'border-transparent'
+                  }`}
+                  style={{
+                    fontFamily: '"MS Sans Serif", Tahoma, sans-serif',
+                  }}
+                >
+                  {line.text}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Decorative Scanlines for the Teleprompter */}
-      <div className="absolute inset-0 pointer-events-none border-4 border-black/45 bg-gradient-to-b from-black/10 via-transparent to-black/10" />
+      <div className="absolute inset-0 pointer-events-none border-4 border-black/45 bg-gradient-to-b from-black/10 via-transparent to-black/10 z-10" />
     </div>
   );
 };

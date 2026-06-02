@@ -8,6 +8,9 @@ interface MediaCenterProps {
   onSongChange: (songId: string) => void;
   onTimeUpdate: (time: number) => void;
   onLyricsParsed?: (lyrics: { time: number; text: string }[]) => void;
+  lyrics: { time: number; text: string }[];
+  customSongTitle: string;
+  setCustomSongTitle: (title: string) => void;
 }
 
 export const MediaCenter: React.FC<MediaCenterProps> = ({
@@ -15,6 +18,9 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
   onSongChange,
   onTimeUpdate,
   onLyricsParsed,
+  lyrics,
+  customSongTitle,
+  setCustomSongTitle,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -146,6 +152,29 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     }
   }, [volume]);
 
+  const hasValidLyrics = () => {
+    if (!lyrics || lyrics.length === 0) return false;
+    if (lyrics.length === 1) {
+      const text = lyrics[0].text;
+      if (
+        text.includes("No LRC Timestamps Found") ||
+        text.includes("AWAITING LYRIC INJECTION") ||
+        text.includes("No synced lyrics found") ||
+        text.trim() === ""
+      ) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Halt playback if lyrics are removed or cleared during execution
+  useEffect(() => {
+    if (isPlaying && !hasValidLyrics()) {
+      handleStop();
+    }
+  }, [lyrics]);
+
   // Track switching or procedural mode toggling
   useEffect(() => {
     stopProceduralSynth();
@@ -169,6 +198,11 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
 
   // Handle Play/Pause
   const handlePlayPause = async () => {
+    if (!hasValidLyrics()) {
+      alert("⚠️ PLAYBACK LOCKED!\n\nKaraoke stage requires lyrics before you can play the music. Please quick-load a song template, paste LRC lyrics in the injector, or wait for the YouTube retrieval stream to finish fetching lyrics first!");
+      return;
+    }
+
     // Resume audio context if suspended by browser security policy
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
       await audioContextRef.current.resume();
@@ -399,6 +433,10 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
       handleStop();
       const localUrl = URL.createObjectURL(file);
       
+      // Extract file name without extension
+      const fileName = file.name.replace(/\.[^/.]+$/, "");
+      setCustomSongTitle(`UPLOAD: ${fileName}`);
+      
       // Update song info in UI
       onSongChange('custom');
       
@@ -448,6 +486,20 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
       const audioSourceUrl = `http://localhost:3001/api/stream?url=${encodeURIComponent(ytUrl)}`;
       if (audioRef.current) {
         handleStop(); // Reset current stream
+        
+        // Extract basic ID/path as fallback title
+        let fallbackTitle = 'YT STREAM';
+        try {
+          const urlObj = new URL(ytUrl);
+          const vParam = urlObj.searchParams.get('v');
+          if (vParam) {
+            fallbackTitle = `YT: ${vParam}`;
+          } else if (urlObj.pathname.length > 1) {
+            fallbackTitle = `YT: ${urlObj.pathname.substring(1)}`;
+          }
+        } catch (_) {}
+        setCustomSongTitle(fallbackTitle);
+
         onSongChange('custom'); // Flag song selection as custom
         audioRef.current.src = audioSourceUrl;
         audioRef.current.load();
@@ -465,6 +517,16 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
         const response = await fetch(`http://localhost:3001/api/lyrics?url=${encodeURIComponent(ytUrl)}`);
         const data = await response.json();
         
+        const resolvedTitle = data.title || (data.parsedMeta && data.parsedMeta.title);
+        const resolvedArtist = data.artist || (data.parsedMeta && data.parsedMeta.artist);
+        if (resolvedTitle) {
+          if (resolvedArtist) {
+            setCustomSongTitle(`${resolvedTitle} - ${resolvedArtist}`);
+          } else {
+            setCustomSongTitle(resolvedTitle);
+          }
+        }
+
         if (data.syncedLyrics && onLyricsParsed) {
           // Pass the time-stamped string directly into your lyric synchronization parser!
           onLyricsParsed(parseLRC(data.syncedLyrics)); 
@@ -494,6 +556,20 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getSongDisplayTitle = () => {
+    if (selectedSongId === 'procedural-synth') {
+      return `⚡ SEQUENCER: BEEP BOOP 8-BIT SYNTH [WEB AUDIO API SYNTH] ⚡`;
+    }
+    if (selectedSongId === 'custom') {
+      return `🎶 PLAYING: ${customSongTitle.toUpperCase()} 🎶`;
+    }
+    const activeDemo = DEMO_SONGS.find((s) => s.id === selectedSongId);
+    if (activeDemo) {
+      return `🎶 PLAYING: ${activeDemo.title.toUpperCase()} - ${activeDemo.artist.toUpperCase()} 🎶`;
+    }
+    return `🎶 PLAYING: ${selectedSongId.toUpperCase()} 🎶`;
+  };
+
   return (
     <div className="flex flex-col gap-4 font-mono text-xs select-none">
       {/* Visualizer Canvas container */}
@@ -508,11 +584,12 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
         }}
       >
         <div className="flex-1 overflow-hidden relative h-4 select-none">
-          <div className="absolute inset-0 whitespace-nowrap animate-[marquee_12s_linear_infinite] font-black tracking-widest text-[#00ffcc] uppercase flex items-center">
-            {isSynthMode ? '⚡ PROCEDURAL Web Audio oscillator sequence active - retro chiptune ⚡' : `🎶 CURRENT TAPE: ${selectedSongId.toUpperCase()} - FULL SYNC SYNTHWAVE MIX 🎶`}
+          <div className="winamp-carousel font-black tracking-widest text-[#00ffcc] uppercase flex items-center">
+            <span className="winamp-carousel-item">{getSongDisplayTitle()}</span>
+            <span className="winamp-carousel-item">{getSongDisplayTitle()}</span>
           </div>
         </div>
-        <div className="text-[10px] text-pink-500 font-extrabold bg-[#220022] px-1 ml-2 border border-pink-500 select-none">
+        <div className="text-[10px] text-pink-500 font-extrabold bg-[#220022] px-1 ml-2 border border-pink-500 select-none z-10 shrink-0">
           {formatTime(currentTimeState)} / {formatTime(duration)}
         </div>
       </div>

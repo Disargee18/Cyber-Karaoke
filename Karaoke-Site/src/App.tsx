@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { WebcamBg } from './components/WebcamBg';
 import { RetroWindow } from './components/RetroWindow';
 import { MediaCenter } from './components/MediaCenter';
-import { LrcEditor } from './components/LrcEditor';
+import { LrcEditor, DEMO_SONGS } from './components/LrcEditor';
 import { LyricsDisplay } from './components/LyricsDisplay';
 import { RetroBling } from './components/RetroBling';
 import { Music, FileText, Video, Radio, Sparkles, Tv, MonitorPlay } from 'lucide-react';
@@ -20,6 +20,7 @@ function App() {
   const [selectedSongId, setSelectedSongId] = useState('awesome-sauce');
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
+  const [customSongTitle, setCustomSongTitle] = useState('CUSTOM UPLOAD');
   const [filter, setFilter] = useState<'none' | 'vaporwave' | 'matrix' | 'crt-glitch' | 'sepia'>('crt-glitch');
   const [isMirrored, setIsMirrored] = useState(true);
   const [cameraWidth, setCameraWidth] = useState<'sm' | 'md' | 'lg' | 'xl'>('lg');
@@ -361,7 +362,16 @@ function App() {
         {/* DRAGGABLE RETRO WINDOW 1: WINAMP MEDIA PLAYER */}
         {windows.mediaPlayer.isOpen && (
           <RetroWindow
-            title={windows.mediaPlayer.title}
+            title={
+              selectedSongId === 'procedural-synth'
+                ? 'Winamp - BEEP BOOP 8-BIT SYNTH'
+                : selectedSongId === 'custom'
+                ? `Winamp - ${customSongTitle}`
+                : (() => {
+                    const demo = DEMO_SONGS.find((s) => s.id === selectedSongId);
+                    return demo ? `Winamp - ${demo.title}` : windows.mediaPlayer.title;
+                  })()
+            }
             onClose={() => toggleWindow('mediaPlayer')}
             onMinimize={() => minimizeWindow('mediaPlayer')}
             isMinimized={windows.mediaPlayer.isMinimized}
@@ -375,6 +385,9 @@ function App() {
               onSongChange={setSelectedSongId}
               onTimeUpdate={setCurrentTime}
               onLyricsParsed={setLyrics}
+              lyrics={lyrics}
+              customSongTitle={customSongTitle}
+              setCustomSongTitle={setCustomSongTitle}
             />
           </RetroWindow>
         )}
@@ -391,7 +404,20 @@ function App() {
             widthClass="w-full max-w-[450px] sm:w-[450px]"
             icon={<Radio size={14} />}
           >
-            <LyricsDisplay lyrics={lyrics} currentTime={currentTime} />
+            <LyricsDisplay
+              lyrics={lyrics}
+              currentTime={currentTime}
+              songTitle={
+                selectedSongId === 'procedural-synth'
+                  ? 'BEEP BOOP 8-BIT SYNTH [WEB AUDIO API SYNTH]'
+                  : selectedSongId === 'custom'
+                  ? customSongTitle.toUpperCase()
+                  : (() => {
+                      const demo = DEMO_SONGS.find((s) => s.id === selectedSongId);
+                      return demo ? `${demo.title.toUpperCase()} [BY ${demo.artist.toUpperCase()}]` : 'KARAOKE TAPE';
+                    })()
+              }
+            />
           </RetroWindow>
         )}
 
