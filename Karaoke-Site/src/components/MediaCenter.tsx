@@ -27,7 +27,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
   const [currentTimeState, setCurrentTimeState] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [vocalRemover, setVocalRemover] = useState(false);
-  const [activeTab, setActiveTab] = useState<'demo' | 'upload' | 'youtube'>('demo');
+  const [activeTab, setActiveTab] = useState<'upload' | 'youtube'>('upload');
   
   // YouTube Tab States
   const [ytUrl, setYtUrl] = useState('');
@@ -199,7 +199,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
   // Handle Play/Pause
   const handlePlayPause = async () => {
     if (!hasValidLyrics()) {
-      alert("⚠️ PLAYBACK LOCKED!\n\nKaraoke stage requires lyrics before you can play the music. Please quick-load a song template, paste LRC lyrics in the injector, or wait for the YouTube retrieval stream to finish fetching lyrics first!");
+      alert("⚠️ PLAYBACK LOCKED!\n\nKaraoke stage requires lyrics before you can play the music. Please upload a local cassette tape or enter a streaming YouTube link in the Winamp Rack tabs to load synced lyrics first!");
       return;
     }
 
@@ -437,6 +437,21 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
       const fileName = file.name.replace(/\.[^/.]+$/, "");
       setCustomSongTitle(`UPLOAD: ${fileName}`);
       
+      // Generate Y2K generic synced lyrics so playing local cassettes is immediately unlocked!
+      if (onLyricsParsed) {
+        onLyricsParsed([
+          { time: 0, text: `🎵 [CASSETTE TAPE ACTIVE: ${fileName.toUpperCase()}] 🎵` },
+          { time: 3, text: "★ READY TO SING! MIRROR FEED ACTIVE ★" },
+          { time: 8, text: "Windows 95 Winamp console loaded," },
+          { time: 14, text: "A digital back-row stage is fully coded!" },
+          { time: 20, text: "Sing your heart out in front of the screen," },
+          { time: 26, text: "The coolest Y2K performance ever seen!" },
+          { time: 32, text: "★ KEEP SINGING! MULTI-STAGE EFFECT ACTIVE ★" },
+          { time: 60, text: "🎵 [Instrumental Solo - check the audio waveform!] 🎵" },
+          { time: 120, text: "★ PERFORMANCE WRAP! SYSTEM COMPILING... ★" }
+        ]);
+      }
+      
       // Update song info in UI
       onSongChange('custom');
       
@@ -482,24 +497,38 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     setYtStatus('loading');
     
     try {
-      // 1. Set the audio source to your live streaming pipe
+      // 1. Fetch the automated lyrics FIRST before starting audio
+      const response = await fetch(`http://localhost:3001/api/lyrics?url=${encodeURIComponent(ytUrl)}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch lyrics from backend API');
+      }
+      const data = await response.json();
+
+      // Check if we received valid lyrics
+      if (!data.syncedLyrics || data.syncedLyrics.trim() === '') {
+        alert("⚠️ LYRICS NOT FOUND!\n\nWe could not retrieve synced LRC lyrics for this YouTube video. The music cannot play unless lyrics are ready.");
+        setYtStatus('error');
+        return;
+      }
+
+      // 2. Lyrics are ready! Parse and inject them to the teleprompter screen
+      if (onLyricsParsed) {
+        onLyricsParsed(parseLRC(data.syncedLyrics));
+      }
+
+      const resolvedTitle = data.title || (data.parsedMeta && data.parsedMeta.title) || 'YouTube Song';
+      const resolvedArtist = data.artist || (data.parsedMeta && data.parsedMeta.artist);
+      if (resolvedArtist) {
+        setCustomSongTitle(`${resolvedTitle} - ${resolvedArtist}`);
+      } else {
+        setCustomSongTitle(resolvedTitle);
+      }
+
+      // 3. Lyrics are fully set and ready. Now load and play the audio stream
       const audioSourceUrl = `http://localhost:3001/api/stream?url=${encodeURIComponent(ytUrl)}`;
       if (audioRef.current) {
         handleStop(); // Reset current stream
         
-        // Extract basic ID/path as fallback title
-        let fallbackTitle = 'YT STREAM';
-        try {
-          const urlObj = new URL(ytUrl);
-          const vParam = urlObj.searchParams.get('v');
-          if (vParam) {
-            fallbackTitle = `YT: ${vParam}`;
-          } else if (urlObj.pathname.length > 1) {
-            fallbackTitle = `YT: ${urlObj.pathname.substring(1)}`;
-          }
-        } catch (_) {}
-        setCustomSongTitle(fallbackTitle);
-
         onSongChange('custom'); // Flag song selection as custom
         audioRef.current.src = audioSourceUrl;
         audioRef.current.load();
@@ -507,44 +536,15 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
         // Calibrate Web Audio context
         initAudioEngine();
         
-        // Auto-play the stream
+        // Play the stream
         await audioRef.current.play();
         setIsPlaying(true);
       }
-
-      // 2. Fetch the automated lyrics from your backend
-      try {
-        const response = await fetch(`http://localhost:3001/api/lyrics?url=${encodeURIComponent(ytUrl)}`);
-        const data = await response.json();
-        
-        const resolvedTitle = data.title || (data.parsedMeta && data.parsedMeta.title);
-        const resolvedArtist = data.artist || (data.parsedMeta && data.parsedMeta.artist);
-        if (resolvedTitle) {
-          if (resolvedArtist) {
-            setCustomSongTitle(`${resolvedTitle} - ${resolvedArtist}`);
-          } else {
-            setCustomSongTitle(resolvedTitle);
-          }
-        }
-
-        if (data.syncedLyrics && onLyricsParsed) {
-          // Pass the time-stamped string directly into your lyric synchronization parser!
-          onLyricsParsed(parseLRC(data.syncedLyrics)); 
-        } else if (onLyricsParsed) {
-          onLyricsParsed([{ time: 0, text: "No synced lyrics found in the free database!" }]);
-        }
-        setYtStatus('streaming');
-      } catch (err) {
-        console.log("Could not load lyrics automatically from backend:", err);
-        if (onLyricsParsed) {
-          onLyricsParsed([{ time: 0, text: "Backend lyrics fetch failed. Paste LRC inside injector!" }]);
-        }
-        setYtStatus('streaming');
-      }
+      setYtStatus('streaming');
     } catch (error) {
       console.error("YouTube streaming handshake failure:", error);
       setYtStatus('error');
-      alert("❌ PIPELINE HANDSHAKE FAILED!\n\nCheck if your Node.js backend is running at http://localhost:3001 and yt-dlp is installed.");
+      alert("❌ PIPELINE HANDSHAKE FAILED!\n\nMake sure your Node.js backend is running at http://localhost:3001 and yt-dlp is installed, or try a different URL.");
     }
   };
 
@@ -690,16 +690,6 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
         {/* Tab Headers */}
         <div className="flex">
           <button
-            onClick={() => setActiveTab('demo')}
-            className={`flex-1 py-1.5 font-bold border-b-0 border border-t-white border-l-white border-r-[#404040] ${
-              activeTab === 'demo'
-                ? 'bg-[#c0c0c0] text-black border-r-[#404040] border-b-0 z-10'
-                : 'bg-[#a0a0a0] text-[#444] border-b-white shadow-inner opacity-75'
-            }`}
-          >
-            📻 DEMO SONGS
-          </button>
-          <button
             onClick={() => setActiveTab('upload')}
             className={`flex-1 py-1.5 font-bold border-b-0 border border-t-white border-l-white border-r-[#404040] ${
               activeTab === 'upload'
@@ -730,15 +720,8 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
             marginTop: '-1px', // overlap borders
           }}
         >
-          {activeTab === 'demo' && (
-            <div className="text-left font-mono text-[10px] text-[#444] flex flex-col gap-1.5 select-none">
-              <span className="font-bold text-[#000]">ROYALTY FREE STATIONS:</span>
-              <span>Loaded with high-fidelity soundtracks. Pick an LRC template below to align, hit PLAY, and sing along!</span>
-            </div>
-          )}
-
           {activeTab === 'upload' && (
-            <div className="flex flex-col gap-2 items-center">
+            <div className="flex flex-col gap-2 items-center font-mono">
               <span className="text-[10px] text-[#444] font-bold text-left self-start">UPLOAD RETRO CASSETTE TAPE:</span>
               <label
                 className="w-full flex items-center justify-center gap-2 p-2 bg-[#dfdfdf] hover:bg-[#efefef] active:bg-[#c0c0c0] text-black font-bold border border-t-white border-l-white border-r-[#404040] border-b-[#404040] cursor-pointer"

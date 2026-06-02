@@ -140,38 +140,11 @@ export const LrcEditor: React.FC<LrcEditorProps> = ({
     handleParse(text);
   };
 
-  const loadDemo = (songId: string) => {
-    onSongChange(songId);
-  };
-
   return (
-    <div className="flex flex-col gap-3 font-mono text-xs select-none">
-      {/* Demo Selector */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[#00ffcc] font-bold text-left tracking-wide">QUICK LOAD SONGS:</span>
-        <div className="grid grid-cols-3 gap-1">
-          {DEMO_SONGS.map((song) => (
-            <button
-              key={song.id}
-              onClick={() => loadDemo(song.id)}
-              className={`p-1.5 font-bold border border-t-white border-l-white border-r-[#404040] border-b-[#404040] transition-all select-none truncate ${
-                selectedSongId === song.id
-                  ? 'bg-gradient-to-r from-pink-500 to-magenta-600 text-white border-t-[#404040] border-l-[#404040] border-r-white border-b-white shadow-inner font-black'
-                  : 'bg-[#c0c0c0] hover:bg-[#dfdfdf] text-black active:border-t-[#404040] active:border-l-[#404040] active:border-r-white active:border-b-white'
-              }`}
-              style={{
-                boxShadow: selectedSongId === song.id ? 'none' : '1px 1px 0px #000',
-              }}
-            >
-              📻 {song.title.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      </div>
-
+    <div className="flex flex-col gap-3 font-mono text-xs select-none h-full flex-1">
       {/* Editor Frame */}
-      <div className="flex flex-col gap-1">
-        <div className="flex justify-between items-center text-[#ff00ff] font-bold tracking-wide">
+      <div className="flex flex-col gap-1 flex-grow flex-1 min-h-[10rem]">
+        <div className="flex justify-between items-center text-[#ff00ff] font-bold tracking-wide shrink-0">
           <div className="flex items-center gap-1">
             <Edit3 size={12} />
             <span>LRC LYRIC INJECTOR (EDIT OR PASTE)</span>
@@ -185,7 +158,7 @@ export const LrcEditor: React.FC<LrcEditorProps> = ({
 
         {/* Input Textarea with double Win95 border bevel inward */}
         <div
-          className="relative bg-black"
+          className="relative bg-black flex-grow flex-1 flex"
           style={{
             border: '2px solid',
             borderColor: '#555555 #ffffff #ffffff #555555',
@@ -197,17 +170,16 @@ export const LrcEditor: React.FC<LrcEditorProps> = ({
             placeholder="[00:00.00] Intro Synth Beat
 [00:05.10] Sing your first line!
 [00:10.50] Watch the teleprompter glow!"
-            rows={6}
-            className="w-full bg-black text-[#00ffcc] font-mono text-xs p-2 focus:outline-none resize-none placeholder-emerald-900 border-none caret-[#00ffcc] font-semibold"
+            className="w-full h-full min-h-[6rem] bg-black text-[#00ffcc] font-mono text-xs p-2 focus:outline-none resize-none placeholder-emerald-900 border-none caret-[#00ffcc] font-semibold"
             style={{
               fontFamily: 'ui-monospace, Consolas, monospace',
             }}
           />
         </div>
 
-        {parseError && <div className="text-red-500 text-[10px] font-bold text-left">⚠️ {parseError}</div>}
+        {parseError && <div className="text-red-500 text-[10px] font-bold text-left shrink-0">⚠️ {parseError}</div>}
         {!parseError && (
-          <div className="text-[#8a8a9e] text-[10px] text-left flex items-center gap-1 select-none">
+          <div className="text-[#8a8a9e] text-[10px] text-left flex items-center gap-1 select-none shrink-0">
             <FileText size={10} />
             <span>Timestamp format must match [minute:second.centisecond]</span>
           </div>

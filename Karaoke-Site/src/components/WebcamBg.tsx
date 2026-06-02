@@ -76,7 +76,7 @@ export const WebcamBg: React.FC<WebcamBgProps> = ({
   };
 
   return (
-    <div className="relative w-full aspect-video bg-[#050510] overflow-hidden select-none" style={{
+    <div className="relative w-full h-full flex-grow flex-1 min-h-[14rem] bg-[#050510] overflow-hidden select-none" style={{
       boxShadow: 'inset 0 0 10px #000000',
     }}>
       {/* Background video - Always rendered in the DOM to avoid null ref lifecycle binding errors */}

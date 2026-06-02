@@ -191,3 +191,26 @@ html, body, #root {
   flex-shrink: 0;
   padding-right: 64px; /* Space between the repeating song titles */
 }
+
+/* Custom scrollbar and resizer adjustments */
+.retro-window::-webkit-resizer {
+  display: none;
+}
+
+/* Windows 95 classic resize grip */
+.retro-resize-grip {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 12px;
+  height: 12px;
+  cursor: se-resize;
+  background-image: linear-gradient(135deg, 
+    transparent 30%, #808080 30%, #808080 40%, 
+    transparent 40%, transparent 50%, #808080 50%, #808080 60%, 
+    transparent 60%, transparent 70%, #808080 70%, #808080 80%, 
+    transparent 80%
+  );
+  background-size: 4px 4px;
+  pointer-events: none;
+}

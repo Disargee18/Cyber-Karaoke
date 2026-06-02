@@ -17,6 +17,27 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ lyrics, currentTim
   const [activeIndex, setActiveIndex] = useState(-1);
   const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+  const [fontSize, setFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('lyrics-font-size');
+    return saved ? parseInt(saved, 10) : 18; // Default 18px (perfect starting Y2K font size)
+  });
+
+  const increaseFontSize = () => {
+    setFontSize(prev => {
+      const next = Math.min(prev + 4, 48);
+      localStorage.setItem('lyrics-font-size', next.toString());
+      return next;
+    });
+  };
+
+  const decreaseFontSize = () => {
+    setFontSize(prev => {
+      const next = Math.max(prev - 4, 12);
+      localStorage.setItem('lyrics-font-size', next.toString());
+      return next;
+    });
+  };
+
   // Find the active lyric index based on the currentTime
   useEffect(() => {
     let newIndex = -1;
@@ -59,13 +80,18 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ lyrics, currentTim
 
   if (lyrics.length === 0 || (lyrics.length === 1 && lyrics[0].time === 0 && lyrics[0].text === '')) {
     return (
-      <div className="h-64 flex flex-col items-center justify-center bg-black/60 text-[#ff00ff] font-mono p-4 text-center rounded">
-        <AlertCircle size={32} className="animate-bounce mb-3 text-pink-500" />
-        <p className="text-sm font-bold tracking-widest text-[#00ffcc] animate-pulse">
-          AWAITING LYRIC INJECTION...
+      <div
+        className="w-full h-full flex-grow flex-1 min-h-[15rem] flex flex-col items-center justify-center bg-black/60 text-[#ff00ff] font-mono p-4 text-center rounded border border-[#555555]/30"
+        style={{
+          boxShadow: 'inset 0 0 10px #000000',
+        }}
+      >
+        <AlertCircle size={32} className="animate-bounce mb-3 text-pink-500 animate-pulse" />
+        <p className="text-sm font-bold tracking-widest text-[#00ffcc] animate-pulse uppercase">
+          Awaiting Music Playback...
         </p>
-        <p className="text-[10px] text-[#8a8a9e] mt-2 max-w-xs">
-          Paste some standard `.lrc` lyrics in the LRC editor or click on a quick-load demo template to begin!
+        <p className="text-[10px] text-[#8a8a9e] mt-2 max-w-xs leading-normal">
+          Awaiting for you to play some music! Insert a local cassette tape or paste a YouTube stream in the Winamp Rack to trigger the synced lyrics.
         </p>
       </div>
     );
@@ -73,21 +99,45 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ lyrics, currentTim
 
   return (
     <div
-      className="relative w-full h-64 bg-black/75 rounded overflow-hidden"
+      className="relative w-full h-full flex-grow flex-1 min-h-[15rem] bg-black/75 rounded overflow-hidden"
       style={{
         border: '2px solid',
         borderColor: '#555555 #ffffff #ffffff #555555',
       }}
     >
-      {/* Sticky Neon Song Title Header */}
-      <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-[#200020] via-black to-[#002020] text-[#00ffcc] font-mono text-[9px] font-black text-center py-1.5 border-b border-pink-500/35 z-20 uppercase tracking-widest flex items-center justify-center gap-1.5 shadow-md">
-        <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping shrink-0" />
-        <span className="truncate max-w-[85%]">{songTitle}</span>
+      {/* Sticky Neon Song Title Header with interactive Font Size adjusters */}
+      <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-[#200020] via-black to-[#002020] text-[#00ffcc] font-mono text-[9px] font-black text-center py-1.5 border-b border-pink-500/35 z-20 uppercase tracking-widest flex items-center justify-between px-3 shadow-md">
+        <div className="flex items-center gap-1.5 truncate max-w-[65%] text-left">
+          <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping shrink-0" />
+          <span className="truncate">{songTitle}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0 select-none">
+          <span className="text-[8px] text-gray-400 font-bold hidden xs:inline">FONT:</span>
+          <div className="flex items-center bg-black/50 p-0.5 border border-pink-500/30 rounded">
+            <button
+              onClick={decreaseFontSize}
+              title="Decrease Font Size"
+              className="px-1 py-0.5 bg-[#c0c0c0] hover:bg-[#dfdfdf] active:bg-[#a0a0a0] text-black font-extrabold text-[8px] border border-t-white border-l-white border-r-[#404040] border-b-[#404040] select-none cursor-pointer"
+            >
+              A-
+            </button>
+            <span className="px-1.5 text-[9px] text-[#00ffcc] font-black min-w-[18px] text-center">
+              {fontSize}
+            </span>
+            <button
+              onClick={increaseFontSize}
+              title="Increase Font Size"
+              className="px-1 py-0.5 bg-[#c0c0c0] hover:bg-[#dfdfdf] active:bg-[#a0a0a0] text-black font-extrabold text-[8px] border border-t-white border-l-white border-r-[#404040] border-b-[#404040] select-none cursor-pointer"
+            >
+              A+
+            </button>
+          </div>
+        </div>
       </div>
 
       <div
         ref={containerRef}
-        className="w-full h-full overflow-y-auto overflow-x-hidden relative px-4 pt-10 pb-32 scroll-smooth select-none"
+        className="w-full h-full overflow-y-auto overflow-x-hidden relative px-4 pt-10 pb-24 scroll-smooth select-none"
         style={{
           backgroundImage: 'radial-gradient(circle, rgba(0, 255, 204, 0.05) 1px, transparent 1px)',
           backgroundSize: '16px 16px',
@@ -104,17 +154,24 @@ export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ lyrics, currentTim
                 ref={(el) => {
                   lineRefs.current[idx] = el;
                 }}
-                className={`w-full max-w-[90%] text-center py-2 px-3 rounded font-mono text-sm sm:text-base tracking-wide transition-all duration-300 flex flex-col items-center justify-center ${
+                className={`w-full max-w-[95%] text-center py-2 px-3 rounded font-mono tracking-wide transition-all duration-300 flex flex-col items-center justify-center ${
                   isActive
                     ? 'scale-110 md:scale-115 font-black text-transparent bg-clip-text bg-gradient-to-r from-[#00ffcc] via-[#ffff00] to-[#ff00ff] drop-shadow-[0_0_8px_rgba(0,255,204,0.7)] z-10'
                     : isPast
                     ? 'opacity-40 scale-95 blur-[0.4px] text-pink-400 font-semibold'
                     : 'opacity-70 text-gray-300 font-medium'
                 }`}
+                style={{
+                  fontSize: isActive ? `${fontSize * 1.15}px` : `${fontSize}px`,
+                  lineHeight: '1.3',
+                }}
               >
                 {/* Active Marker Arrow */}
                 {isActive && (
-                  <div className="flex items-center gap-1 text-[9px] font-bold text-yellow-400 uppercase tracking-widest mb-1.5 animate-bounce select-none">
+                  <div 
+                    className="flex items-center gap-1 font-bold text-yellow-400 uppercase tracking-widest mb-1.5 animate-bounce select-none"
+                    style={{ fontSize: `${Math.max(9, fontSize - 6)}px` }}
+                  >
                     <Music size={10} className="animate-spin text-cyan-400" />
                     <span>★ SING NOW ★</span>
                     <Music size={10} className="animate-spin text-pink-400" />

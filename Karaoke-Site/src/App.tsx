@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { WebcamBg } from './components/WebcamBg';
 import { RetroWindow } from './components/RetroWindow';
 import { MediaCenter } from './components/MediaCenter';
-import { LrcEditor, DEMO_SONGS } from './components/LrcEditor';
+import { DEMO_SONGS } from './components/LrcEditor';
+import { CyberTutorial } from './components/CyberTutorial';
 import { LyricsDisplay } from './components/LyricsDisplay';
-import { RetroBling } from './components/RetroBling';
-import { Music, FileText, Video, Radio, Sparkles, Tv, MonitorPlay } from 'lucide-react';
+import { Music, FileText, Video, Radio, Tv, MonitorPlay, BookOpen } from 'lucide-react';
 
 interface LyricLine {
   time: number;
@@ -15,6 +15,7 @@ interface LyricLine {
 function App() {
   const [isBooted, setIsBooted] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const desktopRef = useRef<HTMLDivElement | null>(null);
   
   // Audio Playback state
   const [selectedSongId, setSelectedSongId] = useState('awesome-sauce');
@@ -23,15 +24,13 @@ function App() {
   const [customSongTitle, setCustomSongTitle] = useState('CUSTOM UPLOAD');
   const [filter, setFilter] = useState<'none' | 'vaporwave' | 'matrix' | 'crt-glitch' | 'sepia'>('crt-glitch');
   const [isMirrored, setIsMirrored] = useState(true);
-  const [cameraWidth, setCameraWidth] = useState<'sm' | 'md' | 'lg' | 'xl'>('lg');
 
   // Window State Manager (Position, Open/Closed, Minimized)
   const [windows, setWindows] = useState({
-    mediaPlayer: { isOpen: true, isMinimized: false, title: 'Winamp Media Rack', defaultX: 40, defaultY: 20 },
-    lyrics: { isOpen: true, isMinimized: false, title: 'Karaoke Lyrics Stage', defaultX: 420, defaultY: 20 },
-    lrcEditor: { isOpen: true, isMinimized: false, title: 'LRC Lyric Injector', defaultX: 40, defaultY: 450 },
-    blingWidgets: { isOpen: true, isMinimized: false, title: 'MySpace Bling Widgets', defaultX: 890, defaultY: 20 },
-    webcamStage: { isOpen: true, isMinimized: false, title: 'Cyber Camera Monitor', defaultX: 420, defaultY: 340 },
+    mediaPlayer: { isOpen: true, isMinimized: false, title: 'Winamp Media Rack', defaultX: 20, defaultY: 20 },
+    lyrics: { isOpen: true, isMinimized: false, title: 'Karaoke Lyrics Stage', defaultX: 375, defaultY: 20 },
+    lrcEditor: { isOpen: false, isMinimized: false, title: 'Cyber Stage Help Book', defaultX: 800, defaultY: 375 },
+    webcamStage: { isOpen: true, isMinimized: false, title: 'Cyber Camera Monitor', defaultX: 800, defaultY: 20 },
   });
 
   const [startMenuOpen, setStartMenuOpen] = useState(false);
@@ -148,18 +147,22 @@ function App() {
 
   const resetWindowLayout = () => {
     setWindows({
-      mediaPlayer: { isOpen: true, isMinimized: false, title: 'Winamp Media Rack', defaultX: 40, defaultY: 20 },
-      lyrics: { isOpen: true, isMinimized: false, title: 'Karaoke Lyrics Stage', defaultX: 420, defaultY: 20 },
-      lrcEditor: { isOpen: true, isMinimized: false, title: 'LRC Lyric Injector', defaultX: 40, defaultY: 450 },
-      blingWidgets: { isOpen: true, isMinimized: false, title: 'MySpace Bling Widgets', defaultX: 890, defaultY: 20 },
-      webcamStage: { isOpen: true, isMinimized: false, title: 'Cyber Camera Monitor', defaultX: 420, defaultY: 340 },
+      mediaPlayer: { isOpen: true, isMinimized: false, title: 'Winamp Media Rack', defaultX: 20, defaultY: 20 },
+      lyrics: { isOpen: true, isMinimized: false, title: 'Karaoke Lyrics Stage', defaultX: 375, defaultY: 20 },
+      lrcEditor: { isOpen: false, isMinimized: false, title: 'Cyber Stage Help Book', defaultX: 800, defaultY: 375 },
+      webcamStage: { isOpen: true, isMinimized: false, title: 'Cyber Camera Monitor', defaultX: 800, defaultY: 20 },
     });
     setStartMenuOpen(false);
   };
 
   if (!isBooted) {
     return (
-      <div className="w-full h-full bg-[#008080] font-mono flex flex-col items-center justify-center p-4 select-none">
+      <div
+        className="w-full h-full font-mono flex flex-col items-center justify-center p-4 select-none bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: "url('/bliss.jpg')",
+        }}
+      >
         {/* Centered retro Windows 95 setup dialog box */}
         <div
           className="w-full max-w-md retro-window flex flex-col font-mono select-none"
@@ -281,9 +284,11 @@ function App() {
       
       {/* Draggable Desktop Area */}
       <div 
-        className="w-full h-[calc(100%-40px)] relative overflow-hidden bg-[#008080] select-none"
+        ref={desktopRef}
+        className="w-full h-[calc(100%-40px)] relative overflow-hidden select-none bg-cover bg-center bg-no-repeat"
         style={{
-          transform: isMirrored ? 'none' : 'scaleX(-1)'
+          transform: isMirrored ? 'none' : 'scaleX(-1)',
+          backgroundImage: "url('/bliss.jpg')",
         }}
       >
         {/* Windows 95 Desktop Icons for closed windows */}
@@ -336,24 +341,10 @@ function App() {
               className="flex flex-col items-center gap-1 group w-20 cursor-pointer"
             >
               <div className="w-12 h-12 bg-[#c0c0c0]/10 hover:bg-[#c0c0c0]/30 active:scale-95 transition-all rounded flex items-center justify-center border border-white/20 shadow-lg p-2.5">
-                <FileText size={28} className="text-[#ff00ff] drop-shadow-[0_0_4px_#ff00ff]" />
+                <BookOpen size={28} className="text-[#ff00ff] drop-shadow-[0_0_4px_#ff00ff]" />
               </div>
               <span className="text-[10px] font-bold text-shadow-[1px_1px_2px_#000000] truncate max-w-full">
-                LRC Injector
-              </span>
-            </button>
-          )}
-
-          {!windows.blingWidgets.isOpen && (
-            <button
-              onClick={() => toggleWindow('blingWidgets')}
-              className="flex flex-col items-center gap-1 group w-20 cursor-pointer"
-            >
-              <div className="w-12 h-12 bg-[#c0c0c0]/10 hover:bg-[#c0c0c0]/30 active:scale-95 transition-all rounded flex items-center justify-center border border-white/20 shadow-lg p-2.5">
-                <Sparkles size={28} className="text-[#00ffcc] drop-shadow-[0_0_4px_#00ffcc] animate-spin" />
-              </div>
-              <span className="text-[10px] font-bold text-shadow-[1px_1px_2px_#000000] truncate max-w-full">
-                MySpace Bling
+                Help Book
               </span>
             </button>
           )}
@@ -379,6 +370,7 @@ function App() {
             defaultY={windows.mediaPlayer.defaultY}
             widthClass="w-full max-w-[340px] sm:w-[340px]"
             icon={<Music size={14} />}
+            dragConstraints={desktopRef}
           >
             <MediaCenter
               selectedSongId={selectedSongId}
@@ -401,8 +393,12 @@ function App() {
             isMinimized={windows.lyrics.isMinimized}
             defaultX={windows.lyrics.defaultX}
             defaultY={windows.lyrics.defaultY}
-            widthClass="w-full max-w-[450px] sm:w-[450px]"
+            widthClass="w-full max-w-[410px] sm:w-[410px]"
             icon={<Radio size={14} />}
+            isResizable={true}
+            defaultWidth={410}
+            defaultHeight={560}
+            dragConstraints={desktopRef}
           >
             <LyricsDisplay
               lyrics={lyrics}
@@ -421,7 +417,7 @@ function App() {
           </RetroWindow>
         )}
 
-        {/* DRAGGABLE RETRO WINDOW 3: LRC LYRICS EDITOR/INJECTOR */}
+        {/* DRAGGABLE RETRO WINDOW 3: CYBER HELP READ ME BOOK */}
         {windows.lrcEditor.isOpen && (
           <RetroWindow
             title={windows.lrcEditor.title}
@@ -431,29 +427,10 @@ function App() {
             defaultX={windows.lrcEditor.defaultX}
             defaultY={windows.lrcEditor.defaultY}
             widthClass="w-full max-w-[340px] sm:w-[340px]"
-            icon={<FileText size={14} />}
+            icon={<BookOpen size={14} />}
+            dragConstraints={desktopRef}
           >
-            <LrcEditor
-              onLyricsParsed={setLyrics}
-              selectedSongId={selectedSongId}
-              onSongChange={setSelectedSongId}
-            />
-          </RetroWindow>
-        )}
-
-        {/* DRAGGABLE RETRO WINDOW 4: MYSPACE CONTROLLERS & WIDGETS */}
-        {windows.blingWidgets.isOpen && (
-          <RetroWindow
-            title={windows.blingWidgets.title}
-            onClose={() => toggleWindow('blingWidgets')}
-            onMinimize={() => minimizeWindow('blingWidgets')}
-            isMinimized={windows.blingWidgets.isMinimized}
-            defaultX={windows.blingWidgets.defaultX}
-            defaultY={windows.blingWidgets.defaultY}
-            widthClass="w-full max-w-[340px] sm:w-[340px]"
-            icon={<Sparkles size={14} />}
-          >
-            <RetroBling filter={filter} setFilter={setFilter} />
+            <CyberTutorial />
           </RetroWindow>
         )}
 
@@ -466,8 +443,12 @@ function App() {
             isMinimized={windows.webcamStage.isMinimized}
             defaultX={windows.webcamStage.defaultX}
             defaultY={windows.webcamStage.defaultY}
-            widthClass={cameraWidth === 'sm' ? 'w-[280px]' : cameraWidth === 'md' ? 'w-[360px]' : cameraWidth === 'lg' ? 'w-[440px]' : 'w-[580px]'}
+            widthClass="w-full max-w-[440px] sm:w-[440px]"
             icon={<Video size={14} />}
+            isResizable={true}
+            defaultWidth={440}
+            defaultHeight={340}
+            dragConstraints={desktopRef}
           >
             <WebcamBg
               filter={filter}
@@ -475,21 +456,21 @@ function App() {
               hasPermission={hasPermission}
             />
 
-            {/* Retro Resolution Bezel Controller Strip */}
+            {/* Retro VHS Camera Filter Bezel Controller Strip */}
             <div className="mt-2 pt-2 border-t border-neutral-400 flex flex-col gap-1 text-[10px] text-neutral-800 font-bold select-none text-left">
-              <span className="text-neutral-700 tracking-wider">MONITOR RESOLUTION:</span>
-              <div className="grid grid-cols-4 gap-0.5 bg-black p-0.5 border border-white">
-                {(['sm', 'md', 'lg', 'xl'] as const).map((sz) => (
+              <span className="text-neutral-700 tracking-wider">VHS CAMERA FILTER:</span>
+              <div className="grid grid-cols-5 gap-0.5 bg-black p-0.5 border border-white">
+                {(['none', 'vaporwave', 'matrix', 'crt-glitch', 'sepia'] as const).map((f) => (
                   <button
-                    key={sz}
-                    onClick={() => setCameraWidth(sz)}
+                    key={f}
+                    onClick={() => setFilter(f)}
                     className={`py-1 text-[9px] font-black border uppercase tracking-tighter cursor-pointer ${
-                      cameraWidth === sz
+                      filter === f
                         ? 'bg-yellow-400 text-black border-yellow-200 shadow-inner'
                         : 'bg-[#c0c0c0] hover:bg-[#dfdfdf] text-black border-t-white border-l-white border-r-[#555] border-b-[#555]'
                     }`}
                   >
-                    {sz === 'sm' ? 'QVGA' : sz === 'md' ? 'VGA' : sz === 'lg' ? 'SVGA (DF)' : 'XGA'}
+                    {f === 'none' ? 'NORMAL' : f.replace('-glitch', '').toUpperCase()}
                   </button>
                 ))}
               </div>
@@ -560,7 +541,7 @@ function App() {
               </button>
             )}
 
-            {/* LRC Editor Task */}
+            {/* Help Book Task */}
             {windows.lrcEditor.isOpen && (
               <button
                 onClick={() => minimizeWindow('lrcEditor')}
@@ -570,25 +551,12 @@ function App() {
                     : 'bg-[#dfdfdf]'
                 }`}
               >
-                <FileText size={10} className="text-pink-500" />
-                <span>LRC Editor</span>
+                <BookOpen size={10} className="text-pink-500" />
+                <span>Help Book</span>
               </button>
             )}
 
-            {/* Bling Task */}
-            {windows.blingWidgets.isOpen && (
-              <button
-                onClick={() => minimizeWindow('blingWidgets')}
-                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${
-                  windows.blingWidgets.isMinimized
-                    ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
-                    : 'bg-[#dfdfdf]'
-                }`}
-              >
-                <Sparkles size={10} className="text-teal-400" />
-                <span>MySpace</span>
-              </button>
-            )}
+
 
             {/* Webcam Stage Task */}
             {windows.webcamStage.isOpen && (
@@ -656,11 +624,10 @@ function App() {
                 <button
                   onClick={() => {
                     setWindows({
-                      mediaPlayer: { isOpen: true, isMinimized: false, title: 'Winamp Media Rack', defaultX: 40, defaultY: 20 },
-                      lyrics: { isOpen: true, isMinimized: false, title: 'Karaoke Lyrics Stage', defaultX: 420, defaultY: 20 },
-                      lrcEditor: { isOpen: true, isMinimized: false, title: 'LRC Lyric Injector', defaultX: 40, defaultY: 450 },
-                      blingWidgets: { isOpen: true, isMinimized: false, title: 'MySpace Bling Widgets', defaultX: 890, defaultY: 20 },
-                      webcamStage: { isOpen: true, isMinimized: false, title: 'Cyber Camera Monitor', defaultX: 420, defaultY: 340 },
+                      mediaPlayer: { isOpen: true, isMinimized: false, title: 'Winamp Media Rack', defaultX: 20, defaultY: 20 },
+                      lyrics: { isOpen: true, isMinimized: false, title: 'Karaoke Lyrics Stage', defaultX: 375, defaultY: 20 },
+                      lrcEditor: { isOpen: true, isMinimized: false, title: 'Cyber Stage Help Book', defaultX: 800, defaultY: 375 },
+                      webcamStage: { isOpen: true, isMinimized: false, title: 'Cyber Camera Monitor', defaultX: 800, defaultY: 20 },
                     });
                     setStartMenuOpen(false);
                   }}
