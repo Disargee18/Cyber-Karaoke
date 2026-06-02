@@ -1,0 +1,689 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { Play, Pause, Square, Volume2, Upload, Globe, RefreshCw } from 'lucide-react';
+import { AudioVisualizer } from './AudioVisualizer';
+import { DEMO_SONGS } from './LrcEditor';
+
+interface MediaCenterProps {
+  selectedSongId: string;
+  onSongChange: (songId: string) => void;
+  onTimeUpdate: (time: number) => void;
+}
+
+export const MediaCenter: React.FC<MediaCenterProps> = ({
+  selectedSongId,
+  onSongChange,
+  onTimeUpdate,
+}) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTimeState, setCurrentTimeState] = useState(0);
+  const [volume, setVolume] = useState(0.8);
+  const [vocalRemover, setVocalRemover] = useState(false);
+  const [activeTab, setActiveTab] = useState<'demo' | 'upload' | 'youtube'>('demo');
+  
+  // YouTube Tab States
+  const [ytUrl, setYtUrl] = useState('');
+  const [ytStatus, setYtStatus] = useState<'idle' | 'loading' | 'streaming' | 'error'>('idle');
+
+  // Web Audio Nodes Refs
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const splitterNodeRef = useRef<ChannelSplitterNode | null>(null);
+  const invertGainNodeRef = useRef<GainNode | null>(null);
+  const mergerNodeRef = useRef<ChannelMergerNode | null>(null);
+  
+  // Wet/Dry path gains
+  const directGainNodeRef = useRef<GainNode | null>(null);
+  const processedGainNodeRef = useRef<GainNode | null>(null);
+  const analyserNodeRef = useRef<AnalyserNode | null>(null);
+
+  // Procedural Synth States & Refs
+  const synthTimerRef = useRef<number | null>(null);
+  const synthTimeRef = useRef<number>(0);
+  const synthStepRef = useRef<number>(0);
+  const [isSynthMode, setIsSynthMode] = useState(false);
+  const [analyserState, setAnalyserState] = useState<AnalyserNode | null>(null);
+
+  // Initialize Audio Context lazily
+  const initAudioEngine = () => {
+    if (audioContextRef.current || !audioRef.current) return;
+
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      audioContextRef.current = ctx;
+
+      // Create main nodes
+      const source = ctx.createMediaElementSource(audioRef.current);
+      sourceNodeRef.current = source;
+
+      const splitter = ctx.createChannelSplitter(2);
+      splitterNodeRef.current = splitter;
+
+      const invertGain = ctx.createGain();
+      invertGain.gain.value = -1.0;
+      invertGainNodeRef.current = invertGain;
+
+      const merger = ctx.createChannelMerger(2);
+      mergerNodeRef.current = merger;
+
+      const directGain = ctx.createGain();
+      directGain.gain.value = 1.0;
+      directGainNodeRef.current = directGain;
+
+      const processedGain = ctx.createGain();
+      processedGain.gain.value = 0.0;
+      processedGainNodeRef.current = processedGain;
+
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 128;
+      analyserNodeRef.current = analyser;
+      setAnalyserState(analyser);
+
+      // --- Connect Phase Cancellation Path ($L - R$) ---
+      // Source splits into L and R channels
+      source.connect(splitter);
+      
+      // Connect Splitter Left (Output 0) directly to Merger Left & Merger Right (Inputs 0 & 1)
+      splitter.connect(merger, 0, 0);
+      splitter.connect(merger, 0, 1);
+      
+      // Connect Splitter Right (Output 1) to Inverter (-1 Gain), then to Merger Left & Merger Right
+      splitter.connect(invertGain, 1);
+      invertGain.connect(merger, 0, 0);
+      invertGain.connect(merger, 0, 1);
+
+      // Merger goes to the Processed Gain node
+      merger.connect(processedGain);
+
+      // --- Connect Direct/Bypass Path ---
+      source.connect(directGain);
+
+      // --- Connect Paths to Analyser, then Destination ---
+      directGain.connect(analyser);
+      processedGain.connect(analyser);
+      analyser.connect(ctx.destination);
+
+      // Sync initial volume and vocal remover toggle values
+      directGain.gain.value = vocalRemover ? 0.0 : 1.0;
+      processedGain.gain.value = vocalRemover ? 1.0 : 0.0;
+    } catch (e) {
+      console.error('Failed to initialize Web Audio context:', e);
+    }
+  };
+
+  // Clean up Audio Graph on Unmount
+  useEffect(() => {
+    return () => {
+      stopProceduralSynth();
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
+
+  // Set Vocal Remover Wet/Dry gains on switch
+  useEffect(() => {
+    if (directGainNodeRef.current && processedGainNodeRef.current) {
+      // Crossfade to prevent audio click artifacts
+      if (vocalRemover) {
+        directGainNodeRef.current.gain.setValueAtTime(0.0, audioContextRef.current?.currentTime || 0);
+        processedGainNodeRef.current.gain.setValueAtTime(1.0, audioContextRef.current?.currentTime || 0);
+      } else {
+        directGainNodeRef.current.gain.setValueAtTime(1.0, audioContextRef.current?.currentTime || 0);
+        processedGainNodeRef.current.gain.setValueAtTime(0.0, audioContextRef.current?.currentTime || 0);
+      }
+    }
+  }, [vocalRemover]);
+
+  // Adjust volume
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  // Track switching or procedural mode toggling
+  useEffect(() => {
+    stopProceduralSynth();
+    setIsPlaying(false);
+    setCurrentTimeState(0);
+    onTimeUpdate(0);
+
+    const activeDemo = DEMO_SONGS.find((s) => s.id === selectedSongId);
+    
+    if (selectedSongId === 'procedural-synth') {
+      setIsSynthMode(true);
+      setDuration(45); // Fake duration for the procedural sequencer
+    } else {
+      setIsSynthMode(false);
+      if (audioRef.current && activeDemo && activeDemo.url !== 'procedural') {
+        audioRef.current.src = activeDemo.url;
+        audioRef.current.load();
+      }
+    }
+  }, [selectedSongId]);
+
+  // Handle Play/Pause
+  const handlePlayPause = async () => {
+    // Resume audio context if suspended by browser security policy
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      await audioContextRef.current.resume();
+    }
+
+    if (isSynthMode) {
+      if (isPlaying) {
+        stopProceduralSynth();
+      } else {
+        startProceduralSynth();
+      }
+      setIsPlaying(!isPlaying);
+    } else {
+      if (!audioRef.current) return;
+      initAudioEngine();
+
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        try {
+          await audioRef.current.play();
+          setIsPlaying(true);
+        } catch (e) {
+          console.error('Playback blocked. User interaction required first.', e);
+        }
+      }
+    }
+  };
+
+  // Handle Stop
+  const handleStop = () => {
+    setIsPlaying(false);
+    setCurrentTimeState(0);
+    onTimeUpdate(0);
+
+    if (isSynthMode) {
+      stopProceduralSynth();
+    } else if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  };
+
+  // HTML5 Audio events
+  const onAudioTimeUpdate = () => {
+    if (audioRef.current && !isSynthMode) {
+      const cur = audioRef.current.currentTime;
+      setCurrentTimeState(cur);
+      onTimeUpdate(cur);
+    }
+  };
+
+  const onAudioLoadedMetadata = () => {
+    if (audioRef.current && !isSynthMode) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const onAudioEnded = () => {
+    setIsPlaying(false);
+    setCurrentTimeState(0);
+    onTimeUpdate(0);
+  };
+
+  // Scrub bar dragging
+  const handleScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    setCurrentTimeState(time);
+    onTimeUpdate(time);
+    if (isSynthMode) {
+      synthTimeRef.current = time;
+      synthStepRef.current = Math.floor(time / 0.18);
+    } else if (audioRef.current) {
+      audioRef.current.currentTime = time;
+    }
+  };
+
+  // -------------------------------------------------------------
+  // --- PROCEDURAL 8-BIT SYNTH SEQUENCER ENGINE (WEB AUDIO API) --
+  // -------------------------------------------------------------
+  const startProceduralSynth = () => {
+    initAudioEngine();
+    const ctx = audioContextRef.current;
+    const analyser = analyserNodeRef.current;
+    if (!ctx || !analyser) return;
+
+    synthTimeRef.current = currentTimeState;
+    synthStepRef.current = Math.floor(synthTimeRef.current / 0.18);
+    
+    // Y2K melody sequencer notes: C Major Pentatonic
+    // C4, D4, E4, G4, A4, C5, D5, E5, G5, A5
+    const scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
+    
+    // Fun Y2K techno groove pattern (indexes inside the scale)
+    const melodyPattern = [
+      0, 2, 4, 7, 5, 7, 9, 7,
+      9, 7, 5, 4, 2, 4, 0, 2,
+      5, 5, 7, 9, 7, 5, 4, 2,
+      0, 0, 4, 4, 7, 7, 9, 9
+    ];
+
+    const bassPattern = [
+      130.81, 130.81, 196.00, 196.00,
+      146.83, 146.83, 220.00, 220.00,
+      164.81, 164.81, 246.94, 246.94,
+      130.81, 130.81, 196.00, 196.00
+    ];
+
+    const stepDuration = 0.18; // 180ms per tick (~333 BPM double time!)
+
+    const playStep = () => {
+      const now = ctx.currentTime;
+      const step = synthStepRef.current;
+
+      // 1. Play Lead Synth (Square wave for digital NES flavor)
+      const melIdx = melodyPattern[step % melodyPattern.length];
+      const freq = scale[melIdx];
+      
+      const osc = ctx.createOscillator();
+      const oscGain = ctx.createGain();
+      
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, now);
+      
+      // Pitch slide vibrato for classic chip-tune glide
+      if (step % 4 === 0) {
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.15);
+      }
+
+      // Envelopes
+      oscGain.gain.setValueAtTime(0.12 * volume, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + stepDuration - 0.02);
+
+      osc.connect(oscGain);
+      oscGain.connect(analyser);
+      osc.start(now);
+      osc.stop(now + stepDuration);
+
+      // 2. Play Sub Bass (Triangle wave for soft, round punch)
+      const bassFreq = bassPattern[Math.floor(step / 2) % bassPattern.length];
+      const bassOsc = ctx.createOscillator();
+      const bassGain = ctx.createGain();
+
+      bassOsc.type = 'triangle';
+      bassOsc.frequency.setValueAtTime(bassFreq, now);
+      
+      bassGain.gain.setValueAtTime(0.35 * volume, now);
+      bassGain.gain.exponentialRampToValueAtTime(0.001, now + stepDuration * 2 - 0.02);
+
+      bassOsc.connect(bassGain);
+      bassGain.connect(analyser);
+      bassOsc.start(now);
+      bassOsc.stop(now + stepDuration * 2);
+
+      // 3. Play Percussion (Noise Node for retro Snare/Crash)
+      if (step % 2 === 1) {
+        // Snare Noise Burst
+        const bufferSize = ctx.sampleRate * 0.1; // 100ms
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+
+        const noiseNode = ctx.createBufferSource();
+        noiseNode.buffer = buffer;
+
+        const noiseFilter = ctx.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.frequency.value = 1000;
+
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.08 * volume, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+        noiseNode.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(analyser);
+        
+        noiseNode.start(now);
+        noiseNode.stop(now + 0.1);
+      } else {
+        // Kick sweep
+        const kickOsc = ctx.createOscillator();
+        const kickGain = ctx.createGain();
+        kickOsc.frequency.setValueAtTime(150, now);
+        kickOsc.frequency.exponentialRampToValueAtTime(0.01, now + 0.1);
+
+        kickGain.gain.setValueAtTime(0.4 * volume, now);
+        kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+        kickOsc.connect(kickGain);
+        kickGain.connect(analyser);
+        kickOsc.start(now);
+        kickOsc.stop(now + 0.1);
+      }
+
+      // Step progression
+      synthStepRef.current = step + 1;
+      synthTimeRef.current = synthStepRef.current * stepDuration;
+      
+      setCurrentTimeState(synthTimeRef.current);
+      onTimeUpdate(synthTimeRef.current);
+
+      if (synthTimeRef.current >= duration) {
+        handleStop();
+      }
+    };
+
+    // Sequencer interval clock
+    synthTimerRef.current = window.setInterval(playStep, stepDuration * 1000);
+  };
+
+  const stopProceduralSynth = () => {
+    if (synthTimerRef.current) {
+      clearInterval(synthTimerRef.current);
+      synthTimerRef.current = null;
+    }
+  };
+
+  // -------------------------------------------------------------
+  // --- LOCAL FILE UPLOAD TAPE HANDLING -------------------------
+  // -------------------------------------------------------------
+  const handleLocalUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && audioRef.current) {
+      handleStop();
+      const localUrl = URL.createObjectURL(file);
+      
+      // Update song info in UI
+      onSongChange('custom');
+      
+      // Load and play
+      audioRef.current.src = localUrl;
+      audioRef.current.load();
+      
+      // Force trigger permissions to make sure they can see screen
+      initAudioEngine();
+    }
+  };
+
+  // -------------------------------------------------------------
+  // --- MOCK YOUTUBE PIPELINE STREAMER -------------------------
+  // -------------------------------------------------------------
+  const handleYtSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ytUrl.trim()) return;
+
+    setYtStatus('loading');
+    
+    // Simulate yt-dlp backend extraction server handshake
+    setTimeout(() => {
+      setYtStatus('streaming');
+      onSongChange('vaporwave-sunset'); // Force load sunset song to simulate success
+      
+      if (audioRef.current) {
+        audioRef.current.src = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3';
+        audioRef.current.load();
+      }
+      
+      // Alert notice
+      alert(
+        `📡 YT PIPELINE HANDSHAKE SUCCESSFUL!\n\n` +
+        `Target: ${ytUrl}\n` +
+        `Backend: MOCKED python yt-dlp pipe (128kbps stereo-audio blob)\n` +
+        `Synthesizing pipeline on clientside frontend. Ready to Sing!`
+      );
+    }, 2000);
+  };
+
+  // Formatting helper for clock timer
+  const formatTime = (time: number) => {
+    if (isNaN(time)) return '00:00';
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="flex flex-col gap-4 font-mono text-xs select-none">
+      {/* Visualizer Canvas container */}
+      <AudioVisualizer analyser={analyserState} />
+
+      {/* Winamp Metadata Banner / Scrolling Song Title */}
+      <div
+        className="bg-black text-[#00ffcc] p-1.5 flex justify-between items-center"
+        style={{
+          border: '1.5px solid',
+          borderColor: '#555555 #ffffff #ffffff #555555',
+        }}
+      >
+        <div className="flex-1 overflow-hidden relative h-4 select-none">
+          <div className="absolute inset-0 whitespace-nowrap animate-[marquee_12s_linear_infinite] font-black tracking-widest text-[#00ffcc] uppercase flex items-center">
+            {isSynthMode ? '⚡ PROCEDURAL Web Audio oscillator sequence active - retro chiptune ⚡' : `🎶 CURRENT TAPE: ${selectedSongId.toUpperCase()} - FULL SYNC SYNTHWAVE MIX 🎶`}
+          </div>
+        </div>
+        <div className="text-[10px] text-pink-500 font-extrabold bg-[#220022] px-1 ml-2 border border-pink-500 select-none">
+          {formatTime(currentTimeState)} / {formatTime(duration)}
+        </div>
+      </div>
+
+      {/* Scrub Bar / Timeline */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-[#ff00ff] font-bold select-none">TRACK</span>
+        <input
+          type="range"
+          min={0}
+          max={duration || 100}
+          step={0.1}
+          value={currentTimeState}
+          onChange={handleScrub}
+          className="flex-grow h-6 bg-[#dfdfdf] border border-t-neutral-700 border-l-neutral-700 border-r-white border-b-white cursor-pointer accent-magenta-500 outline-none"
+          style={{
+            WebkitAppearance: 'none',
+          }}
+        />
+      </div>
+
+      {/* Player Action Buttons Winamp Deck */}
+      <div className="flex flex-wrap justify-between items-center gap-1.5 p-1 bg-[#b5b5b5] border border-white">
+        <div className="flex gap-1.5">
+          <button
+            onClick={handlePlayPause}
+            className="retro-button flex items-center justify-center gap-1 min-w-[70px]"
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <Pause size={10} className="fill-black" /> : <Play size={10} className="fill-black" />}
+            {isPlaying ? 'PAUSE' : 'PLAY'}
+          </button>
+          <button
+            onClick={handleStop}
+            className="retro-button flex items-center justify-center gap-1"
+            title="Stop"
+          >
+            <Square size={10} className="fill-black" />
+            STOP
+          </button>
+        </div>
+
+        {/* Volume controls */}
+        <div className="flex items-center gap-1.5">
+          <Volume2 size={12} className="text-neutral-700" />
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            className="w-20 h-4 bg-[#808080] outline-none cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* Phase Canceling vocal remover toggle box */}
+      <div
+        className="p-3 bg-[#c0c0c0] flex flex-col gap-2 rounded"
+        style={{
+          border: '1.5px solid',
+          borderColor: '#555555 #ffffff #ffffff #555555',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col text-left">
+            <span className="font-extrabold text-[#00ffcc] tracking-widest drop-shadow-[0_0_2px_#00ffcc] text-sm">
+              VOCAL CANCEL RACK
+            </span>
+            <span className="text-[9px] text-[#555] font-semibold">
+              $L - R$ Phase cancellation node matrix
+            </span>
+          </div>
+
+          {/* Flashy Neon Toggle Switch */}
+          <button
+            onClick={() => setVocalRemover(!vocalRemover)}
+            className={`px-3 py-1 font-mono font-black text-[10px] select-none border-2 transition-all ${
+              vocalRemover
+                ? 'bg-[#ff00ff] text-white border-t-[#555] border-l-[#555] border-r-white border-b-white animate-pulse shadow-[0_0_8px_#ff00ff]'
+                : 'bg-black text-[#888] border-t-[#555] border-l-[#555] border-r-white border-b-white'
+            }`}
+          >
+            VOCAL REMOVER: {vocalRemover ? 'ON' : 'OFF'}
+          </button>
+        </div>
+        
+        {vocalRemover && (
+          <div className="text-[10px] text-pink-600 bg-pink-100 p-1.5 font-bold text-left border border-pink-300">
+            ⚠️ NOTICE: Lead vocals in stereo mix are inverted & canceled. Sub-bass and stereo reverbs remain. Works best on stereo audio uploads!
+          </div>
+        )}
+      </div>
+
+      {/* Media Input Tabs System */}
+      <div className="flex flex-col mt-2">
+        {/* Tab Headers */}
+        <div className="flex">
+          <button
+            onClick={() => setActiveTab('demo')}
+            className={`flex-1 py-1.5 font-bold border-b-0 border border-t-white border-l-white border-r-[#404040] ${
+              activeTab === 'demo'
+                ? 'bg-[#c0c0c0] text-black border-r-[#404040] border-b-0 z-10'
+                : 'bg-[#a0a0a0] text-[#444] border-b-white shadow-inner opacity-75'
+            }`}
+          >
+            📻 DEMO SONGS
+          </button>
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`flex-1 py-1.5 font-bold border-b-0 border border-t-white border-l-white border-r-[#404040] ${
+              activeTab === 'upload'
+                ? 'bg-[#c0c0c0] text-black border-r-[#404040] border-b-0 z-10'
+                : 'bg-[#a0a0a0] text-[#444] border-b-white shadow-inner opacity-75'
+            }`}
+          >
+            📁 LOCAL UPLOAD
+          </button>
+          <button
+            onClick={() => setActiveTab('youtube')}
+            className={`flex-1 py-1.5 font-bold border-b-0 border border-t-white border-l-white border-r-[#404040] ${
+              activeTab === 'youtube'
+                ? 'bg-[#c0c0c0] text-black border-r-[#404040] border-b-0 z-10'
+                : 'bg-[#a0a0a0] text-[#444] border-b-white shadow-inner opacity-75'
+            }`}
+          >
+            🌐 YT STREAMER
+          </button>
+        </div>
+
+        {/* Tab Contents Frame */}
+        <div
+          className="p-3 bg-[#c0c0c0]"
+          style={{
+            border: '1.5px solid',
+            borderColor: '#ffffff #555555 #555555 #ffffff',
+            marginTop: '-1px', // overlap borders
+          }}
+        >
+          {activeTab === 'demo' && (
+            <div className="text-left font-mono text-[10px] text-[#444] flex flex-col gap-1.5 select-none">
+              <span className="font-bold text-[#000]">ROYALTY FREE STATIONS:</span>
+              <span>Loaded with high-fidelity soundtracks. Pick an LRC template below to align, hit PLAY, and sing along!</span>
+            </div>
+          )}
+
+          {activeTab === 'upload' && (
+            <div className="flex flex-col gap-2 items-center">
+              <span className="text-[10px] text-[#444] font-bold text-left self-start">UPLOAD RETRO CASSETTE TAPE:</span>
+              <label
+                className="w-full flex items-center justify-center gap-2 p-2 bg-[#dfdfdf] hover:bg-[#efefef] active:bg-[#c0c0c0] text-black font-bold border border-t-white border-l-white border-r-[#404040] border-b-[#404040] cursor-pointer"
+                style={{
+                  boxShadow: '1px 1px 0px #000',
+                }}
+              >
+                <Upload size={12} />
+                <span>INJECT MP3/WAV FILE</span>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={handleLocalUpload}
+                  className="hidden"
+                />
+              </label>
+              <span className="text-[9px] text-neutral-600">Audio stays entirely local. We generate a local blob URL.</span>
+            </div>
+          )}
+
+          {activeTab === 'youtube' && (
+            <form onSubmit={handleYtSubmit} className="flex flex-col gap-2">
+              <span className="text-[10px] text-[#444] font-bold text-left">YT RETRIEVAL PIPELINE:</span>
+              <div className="flex gap-1.5">
+                <div
+                  className="flex-grow bg-black p-1"
+                  style={{
+                    border: '1.5px solid',
+                    borderColor: '#555555 #ffffff #ffffff #555555',
+                  }}
+                >
+                  <input
+                    type="url"
+                    value={ytUrl}
+                    onChange={(e) => setYtUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="w-full bg-black text-[#00ffcc] font-mono focus:outline-none border-none text-[10px]"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={ytStatus === 'loading'}
+                  className="retro-button flex items-center gap-1.5 shrink-0"
+                >
+                  {ytStatus === 'loading' ? (
+                    <RefreshCw size={10} className="animate-spin" />
+                  ) : (
+                    <Globe size={10} />
+                  )}
+                  <span>{ytStatus === 'loading' ? 'FETCHING...' : 'STREAM'}</span>
+                </button>
+              </div>
+              <span className="text-[8px] text-neutral-500 text-left">
+                * Note: Standard Node.js backend streams audio via a free yt-dlp pipe. This mockup plays our synthwave demo with simulated pipeline data.
+              </span>
+            </form>
+          )}
+        </div>
+      </div>
+
+      {/* Hidden standard Audio Tag */}
+      <audio
+        ref={audioRef}
+        crossOrigin="anonymous"
+        onTimeUpdate={onAudioTimeUpdate}
+        onLoadedMetadata={onAudioLoadedMetadata}
+        onEnded={onAudioEnded}
+        className="hidden"
+      />
+    </div>
+  );
+};

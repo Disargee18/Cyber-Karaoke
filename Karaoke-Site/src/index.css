@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-flicker: flicker 0.15s infinite;
+  --animate-scanline: scanline 6s linear infinite;
+  --animate-spin-slow: spin-slow 12s linear infinite;
+  --font-sans: "MS Sans Serif", Tahoma, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, Consolas, "Courier New", monospace;
+}
+
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes flicker {
+  0% { opacity: 0.97; }
+  50% { opacity: 1; }
+  100% { opacity: 0.98; }
+}
+
+@keyframes spin-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Custom Scrollbar styled for retro Windows 95 look */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+  background-color: #dfdfdf;
+}
+::-webkit-scrollbar-track {
+  background-image: repeating-conic-gradient(#c0c0c0 0% 25%, #ffffff 0% 50%);
+  background-size: 2px 2px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  box-shadow: 1px 1px 0px #000;
+}
+::-webkit-scrollbar-thumb:active {
+  background-color: #b0b0b0;
+  border-color: #808080 #ffffff #ffffff #808080;
+}
+
+/* Custom Win95 Bevel Effects */
+.retro-bevel-out {
+  border: 2px solid;
+  border-color: #ffffff #555555 #555555 #ffffff;
+  box-shadow: 1px 1px 0 0 #000;
+  background-color: #c0c0c0;
+}
+
+.retro-bevel-in {
+  border: 2px solid;
+  border-color: #555555 #ffffff #ffffff #555555;
+  background-color: #000000;
+}
+
+.retro-button {
+  background-color: #c0c0c0;
+  border: 2px solid;
+  border-color: #ffffff #555555 #555555 #ffffff;
+  box-shadow: 1px 1px 0 0 #000000;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.retro-button:active:not(:disabled) {
+  border-color: #555555 #ffffff #ffffff #555555;
+  box-shadow: none;
+  padding: 5px 9px 3px 11px;
+  background-color: #b0b0b0;
+}
+
+.retro-button:disabled {
+  color: #7f7f7f;
+  text-shadow: 1px 1px 0 #ffffff;
+  cursor: not-allowed;
+}
+
+/* Y2K Neon Glowing Effects */
+.neon-glow-cyan {
+  color: #00ffcc;
+  text-shadow: 0 0 3px #00ffcc, 0 0 8px rgba(0, 255, 204, 0.6), 0 0 15px rgba(0, 255, 204, 0.4);
+}
+
+.neon-glow-magenta {
+  color: #ff00ff;
+  text-shadow: 0 0 3px #ff00ff, 0 0 8px rgba(255, 0, 255, 0.6), 0 0 15px rgba(255, 0, 255, 0.4);
+}
+
+.neon-glow-yellow {
+  color: #ffff00;
+  text-shadow: 0 0 3px #ffff00, 0 0 8px rgba(255, 255, 0, 0.6), 0 0 15px rgba(255, 255, 0, 0.4);
+}
+
+.neon-box-cyan {
+  box-shadow: 0 0 8px #00ffcc, inset 0 0 4px #00ffcc;
+}
+
+.neon-box-magenta {
+  box-shadow: 0 0 8px #ff00ff, inset 0 0 4px #ff00ff;
+}
+
+/* Blinking animations */
+.retro-blink {
+  animation: retro-blink-anim 0.8s steps(2, start) infinite;
+}
+
+@keyframes retro-blink-anim {
+  to { visibility: hidden; }
+}
+
+/* Rainbow animated background text */
+.rainbow-text {
+  background-image: linear-gradient(to right, #ff0000, #ff00ff, #0000ff, #00ffcc, #00ff00, #ffff00, #ff0000);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 400% 100%;
+  animation: rainbow-scroll 8s linear infinite;
+}
+
+@keyframes rainbow-scroll {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 400% 50%; }
+}
+
+/* Marquee track */
+.retro-marquee {
+  overflow: hidden;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.retro-marquee-content {
+  display: inline-block;
+  padding-left: 100%;
+  animation: marquee-anim 15s linear infinite;
+}
+
+@keyframes marquee-anim {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-100%, 0, 0); }
+}
+
+/* HTML and Root adjustments */
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: "MS Sans Serif", Tahoma, "Segoe UI", sans-serif;
+  background-color: #000;
+}
+
+/* Pixel image rendering */
+.image-render-pixel {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
