@@ -84,7 +84,7 @@ app.get('/api/stream', (req, res) => {
 
     console.log(`🎵 Streaming audio for: ${youtubeUrl}`);
 
-    res.setHeader('Content-Type', 'audio/mp4');
+    res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Transfer-Encoding', 'chunked');
 
     const ytdlpPath = getYtdlpPath();
@@ -107,16 +107,38 @@ app.get('/api/stream', (req, res) => {
 
     const ytdlp = spawn(cmd, args);
 
-    ytdlp.stdout.pipe(res);
+    // Pipe through ffmpeg to convert DASH stream to standard MP3
+    const ffmpegCmd = 'ffmpeg';
+    const ffmpegArgs = [
+        '-i', 'pipe:0',      // Read from stdin
+        '-f', 'mp3',         // Output format mp3
+        '-b:a', '128k',      // Audio bitrate
+        '-ac', '2',          // Stereo
+        '-vn',               // No video
+        'pipe:1'             // Write to stdout
+    ];
+    
+    const ffmpegProc = spawn(ffmpegCmd, ffmpegArgs);
+
+    // yt-dlp stdout -> ffmpeg stdin
+    ytdlp.stdout.pipe(ffmpegProc.stdin);
+
+    // ffmpeg stdout -> Express response
+    ffmpegProc.stdout.pipe(res);
 
     ytdlp.stderr.on('data', (data) => {
-        // Keeps track of internal backend downloading logs silently
         console.error(`yt-dlp stderr: ${data.toString()}`);
     });
 
+    ffmpegProc.stderr.on('data', (data) => {
+        // Optional: uncomment to debug ffmpeg issues
+        // console.error(`ffmpeg stderr: ${data.toString()}`);
+    });
+
     req.on('close', () => {
-        console.log('🛑 User stopped singing. Killing audio stream process.');
+        console.log('🛑 User stopped singing. Killing audio stream processes.');
         ytdlp.kill();
+        ffmpegProc.kill();
     });
 });
 
