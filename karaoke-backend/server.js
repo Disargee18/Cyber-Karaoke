@@ -35,7 +35,9 @@ async function getYoutubeVideoTitle(youtubeUrl) {
     // Attempt 2: Fallback to non-blocking yt-dlp exec (does not block Node event loop)
     return new Promise((resolve, reject) => {
         const ytdlpPath = getYtdlpPath();
-        const cmd = `"${ytdlpPath}" --get-title "${youtubeUrl}"`;
+        const isWin = process.platform === 'win32';
+        const cmd = isWin ? `"${ytdlpPath}" --get-title "${youtubeUrl}"` : `python3 "${ytdlpPath}" --get-title "${youtubeUrl}"`;
+        
         exec(cmd, (error, stdout, stderr) => {
             if (error) {
                 reject(error);
@@ -51,6 +53,23 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+app.get('/api/test', (req, res) => {
+    try {
+        const ls = execSync('ls -la').toString();
+        const ytdlp = fs.existsSync(getYtdlpPath()) ? 'EXISTS' : 'MISSING';
+        const python = execSync('python3 --version').toString();
+        let ytdlpVer = 'ERROR';
+        try {
+            ytdlpVer = execSync(`python3 ${getYtdlpPath()} --version`).toString();
+        } catch(e) {
+            ytdlpVer = e.message;
+        }
+        res.json({ ls, ytdlp, python, ytdlpVer });
+    } catch(err) {
+        res.json({ error: err.message });
+    }
+});
 
 /**
  * ROUTE 1: GET AUDIO STREAM FROM YOUTUBE
@@ -69,18 +88,30 @@ app.get('/api/stream', (req, res) => {
     res.setHeader('Transfer-Encoding', 'chunked');
 
     const ytdlpPath = getYtdlpPath();
+    const isWin = process.platform === 'win32';
+    
     // Spawns yt-dlp to output the audio straight to stdout (-)
-    const ytdlp = spawn(ytdlpPath, [
+    const cmd = isWin ? ytdlpPath : 'python3';
+    const args = isWin ? [
         '--no-playlist',
         '-f', 'bestaudio/best',
         '-o', '-',
         youtubeUrl
-    ]);
+    ] : [
+        ytdlpPath,
+        '--no-playlist',
+        '-f', 'bestaudio/best',
+        '-o', '-',
+        youtubeUrl
+    ];
+
+    const ytdlp = spawn(cmd, args);
 
     ytdlp.stdout.pipe(res);
 
     ytdlp.stderr.on('data', (data) => {
         // Keeps track of internal backend downloading logs silently
+        console.error(`yt-dlp stderr: ${data.toString()}`);
     });
 
     req.on('close', () => {
