@@ -16,7 +16,7 @@ function App() {
   const [isBooted, setIsBooted] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const desktopRef = useRef<HTMLDivElement | null>(null);
-  
+
   // Audio Playback state
   const [selectedSongId, setSelectedSongId] = useState('awesome-sauce');
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
@@ -47,7 +47,7 @@ function App() {
       hours = hours ? hours : 12; // the hour '0' should be '12'
       setSystemTime(`${hours}:${mins} ${ampm}`);
     };
-    
+
     updateTime();
     const interval = setInterval(updateTime, 60000);
     return () => clearInterval(interval);
@@ -76,19 +76,19 @@ function App() {
   const handleBootStage = async () => {
     setIsBooted(true);
     await handleRequestPermissions();
-    
+
     // Play startup chime
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new AudioCtx();
       const now = ctx.currentTime;
-      
+
       // Swell pads
       const freqs = [130.81, 164.81, 196.00, 261.63, 329.63, 392.00]; // C major lush chord
       const master = ctx.createGain();
       master.gain.setValueAtTime(0.12, now);
       master.connect(ctx.destination);
-      
+
       freqs.forEach((f, i) => {
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
@@ -102,7 +102,7 @@ function App() {
         osc.start(now);
         osc.stop(now + 3.5);
       });
-      
+
       // High bell chime notes: E5 -> G5 -> C6 -> E6
       const bells = [659.25, 783.99, 1046.50, 1318.51];
       bells.forEach((f, i) => {
@@ -281,9 +281,9 @@ function App() {
 
   return (
     <div className="relative w-full h-full overflow-hidden text-black font-sans select-none">
-      
+
       {/* Draggable Desktop Area */}
-      <div 
+      <div
         ref={desktopRef}
         className="w-full h-[calc(100%-40px)] relative overflow-hidden select-none bg-cover bg-center bg-no-repeat"
         style={{
@@ -357,8 +357,8 @@ function App() {
               selectedSongId === 'procedural-synth'
                 ? 'Winamp - BEEP BOOP 8-BIT SYNTH'
                 : selectedSongId === 'custom'
-                ? `Winamp - ${customSongTitle}`
-                : (() => {
+                  ? `Winamp - ${customSongTitle}`
+                  : (() => {
                     const demo = DEMO_SONGS.find((s) => s.id === selectedSongId);
                     return demo ? `Winamp - ${demo.title}` : windows.mediaPlayer.title;
                   })()
@@ -407,8 +407,8 @@ function App() {
                 selectedSongId === 'procedural-synth'
                   ? 'BEEP BOOP 8-BIT SYNTH [WEB AUDIO API SYNTH]'
                   : selectedSongId === 'custom'
-                  ? customSongTitle.toUpperCase()
-                  : (() => {
+                    ? customSongTitle.toUpperCase()
+                    : (() => {
                       const demo = DEMO_SONGS.find((s) => s.id === selectedSongId);
                       return demo ? `${demo.title.toUpperCase()} [BY ${demo.artist.toUpperCase()}]` : 'KARAOKE TAPE';
                     })()
@@ -464,11 +464,10 @@ function App() {
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
-                    className={`py-1 text-[9px] font-black border uppercase tracking-tighter cursor-pointer ${
-                      filter === f
+                    className={`py-1 text-[9px] font-black border uppercase tracking-tighter cursor-pointer ${filter === f
                         ? 'bg-yellow-400 text-black border-yellow-200 shadow-inner'
                         : 'bg-[#c0c0c0] hover:bg-[#dfdfdf] text-black border-t-white border-l-white border-r-[#555] border-b-[#555]'
-                    }`}
+                      }`}
                   >
                     {f === 'none' ? 'NORMAL' : f.replace('-glitch', '').toUpperCase()}
                   </button>
@@ -491,11 +490,10 @@ function App() {
         <div className="flex items-center gap-1.5 h-full relative">
           <button
             onClick={() => setStartMenuOpen(!startMenuOpen)}
-            className={`h-7 px-2 font-black select-none text-xs flex items-center gap-1.5 border border-t-white border-l-white border-r-[#404040] border-b-[#404040] ${
-              startMenuOpen
+            className={`h-7 px-2 font-black select-none text-xs flex items-center gap-1.5 border border-t-white border-l-white border-r-[#404040] border-b-[#404040] ${startMenuOpen
                 ? 'bg-[#a0a0a0] border-t-[#404040] border-l-[#404040] border-r-white border-b-white shadow-inner'
                 : 'bg-[#c0c0c0] hover:bg-[#dfdfdf]'
-            }`}
+              }`}
             style={{
               boxShadow: startMenuOpen ? 'none' : '1px 1px 0px #000',
             }}
@@ -515,11 +513,10 @@ function App() {
             {windows.mediaPlayer.isOpen && (
               <button
                 onClick={() => minimizeWindow('mediaPlayer')}
-                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${
-                  windows.mediaPlayer.isMinimized
+                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${windows.mediaPlayer.isMinimized
                     ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
                     : 'bg-[#dfdfdf]'
-                }`}
+                  }`}
               >
                 <Music size={10} className="text-[#00ffcc] drop-shadow-[0_0_1px_#00ffcc]" />
                 <span>Winamp Rack</span>
@@ -530,11 +527,10 @@ function App() {
             {windows.lyrics.isOpen && (
               <button
                 onClick={() => minimizeWindow('lyrics')}
-                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${
-                  windows.lyrics.isMinimized
+                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${windows.lyrics.isMinimized
                     ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
                     : 'bg-[#dfdfdf]'
-                }`}
+                  }`}
               >
                 <Radio size={10} className="text-yellow-500" />
                 <span>Lyrics Stage</span>
@@ -545,11 +541,10 @@ function App() {
             {windows.lrcEditor.isOpen && (
               <button
                 onClick={() => minimizeWindow('lrcEditor')}
-                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${
-                  windows.lrcEditor.isMinimized
+                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${windows.lrcEditor.isMinimized
                     ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
                     : 'bg-[#dfdfdf]'
-                }`}
+                  }`}
               >
                 <BookOpen size={10} className="text-pink-500" />
                 <span>Help Book</span>
@@ -562,11 +557,10 @@ function App() {
             {windows.webcamStage.isOpen && (
               <button
                 onClick={() => minimizeWindow('webcamStage')}
-                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${
-                  windows.webcamStage.isMinimized
+                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${windows.webcamStage.isMinimized
                     ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
                     : 'bg-[#dfdfdf]'
-                }`}
+                  }`}
               >
                 <Video size={10} className="text-[#ff00ff]" />
                 <span>Webcam Stage</span>
