@@ -14,6 +14,7 @@ WORKDIR /app
 
 # Install dependencies (this will also trigger our postinstall script to fetch yt-dlp)
 COPY package*.json ./
+COPY download-ytdlp.js ./
 RUN npm install
 
 # Copy the rest of the application code
