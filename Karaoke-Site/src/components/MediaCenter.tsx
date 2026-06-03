@@ -502,16 +502,21 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
       // 1. Fetch the automated lyrics FIRST before starting audio
       const response = await fetch(`${API_BASE_URL}/api/lyrics?url=${encodeURIComponent(ytUrl)}`);
       if (!response.ok) {
+        if (response.status === 404) {
+          let errMsg = "We could not find synchronized lyrics for this song in the database.";
+          try {
+            const errData = await response.json();
+            if (errData && errData.error) {
+              errMsg = errData.error;
+            }
+          } catch (e) {}
+          alert(`⚠️ LYRICS NOT FOUND!\n\n${errMsg}\n\nPlease try a different YouTube video.`);
+          setYtStatus('error');
+          return;
+        }
         throw new Error('Failed to fetch lyrics from backend API');
       }
       const data = await response.json();
-
-      // Check if we received valid lyrics
-      if (!data.syncedLyrics || data.syncedLyrics.trim() === '') {
-        alert("⚠️ LYRICS NOT FOUND!\n\nWe could not retrieve synced LRC lyrics for this YouTube video. The music cannot play unless lyrics are ready.");
-        setYtStatus('error');
-        return;
-      }
 
       // 2. Lyrics are ready! Parse and inject them to the teleprompter screen
       if (onLyricsParsed) {
