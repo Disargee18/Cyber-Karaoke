@@ -1,4 +1,4 @@
-FROM node:18-bullseye-slim
+FROM node:18-bookworm-slim
 
 # Install ffmpeg (required by yt-dlp for audio processing/streaming)
 # We also install python3 and ca-certificates just as a reliable fallback
