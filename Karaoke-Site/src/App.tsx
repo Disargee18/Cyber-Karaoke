@@ -5,7 +5,7 @@ import { MediaCenter } from './components/MediaCenter';
 import { DEMO_SONGS } from './components/LrcEditor';
 import { CyberTutorial } from './components/CyberTutorial';
 import { LyricsDisplay } from './components/LyricsDisplay';
-import { Music, FileText, Video, Radio, Tv, MonitorPlay, BookOpen } from 'lucide-react';
+import { Music, Video, Radio, Tv, MonitorPlay, BookOpen } from 'lucide-react';
 
 interface LyricLine {
   time: number;
