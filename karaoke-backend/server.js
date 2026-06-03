@@ -5,6 +5,20 @@ const fs = require('fs');
 const path = require('path');
 const { cleanYoutubeTitle } = require('./util');
 
+// Setup cookies file at startup if YT_COOKIES environment variable is provided
+let activeCookiesPath = null;
+if (process.env.YT_COOKIES) {
+    const tempDir = process.platform === 'win32' ? __dirname : '/tmp';
+    const filePath = path.join(tempDir, 'youtube-cookies.txt');
+    try {
+        fs.writeFileSync(filePath, process.env.YT_COOKIES);
+        activeCookiesPath = filePath;
+        console.log('🍪 Session cookies written successfully from YT_COOKIES env var.');
+    } catch (err) {
+        console.error('⚠️ Failed to write session cookies:', err.message);
+    }
+}
+
 // Dynamically resolve yt-dlp path (checks local backend folder first, then falls back to system PATH)
 function getYtdlpPath() {
     const localExeName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
@@ -35,7 +49,13 @@ async function getYoutubeVideoTitle(youtubeUrl) {
     // Attempt 2: Fallback to non-blocking yt-dlp exec (does not block Node event loop)
     return new Promise((resolve, reject) => {
         const ytdlpPath = getYtdlpPath();
-        const cmd = `"${ytdlpPath}" --js-runtimes node --extractor-args "youtube:player_client=ios" --get-title "${youtubeUrl}"`;
+        let cmd = `"${ytdlpPath}" --js-runtimes node`;
+        if (activeCookiesPath) {
+            cmd += ` --cookies "${activeCookiesPath}"`;
+        } else {
+            cmd += ` --extractor-args "youtube:player_client=ios"`;
+        }
+        cmd += ` --get-title "${youtubeUrl}"`;
         
         exec(cmd, (error, stdout, stderr) => {
             if (error) {
@@ -101,12 +121,18 @@ app.get('/api/stream', (req, res) => {
     const cmd = ytdlpPath;
     const args = [
         '--no-playlist',
-        '--js-runtimes', 'node',
-        '--extractor-args', 'youtube:player_client=ios',
+        '--js-runtimes', 'node'
+    ];
+    if (activeCookiesPath) {
+        args.push('--cookies', activeCookiesPath);
+    } else {
+        args.push('--extractor-args', 'youtube:player_client=ios');
+    }
+    args.push(
         '-f', 'bestaudio[ext=m4a]/bestaudio',
         '-o', '-',
         youtubeUrl
-    ];
+    );
 
     const ytdlp = spawn(cmd, args);
 
