@@ -11,7 +11,7 @@ if (isWin) {
 } else if (isMac) {
     releaseName = 'yt-dlp_macos';
 } else {
-    releaseName = 'yt-dlp'; // Use python-based OS-independent script for Linux (Docker)
+    releaseName = 'yt-dlp'; // Standalone binary for Linux
 }
 
 const fileName = isWin ? 'yt-dlp.exe' : 'yt-dlp';

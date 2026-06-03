@@ -35,8 +35,7 @@ async function getYoutubeVideoTitle(youtubeUrl) {
     // Attempt 2: Fallback to non-blocking yt-dlp exec (does not block Node event loop)
     return new Promise((resolve, reject) => {
         const ytdlpPath = getYtdlpPath();
-        const isWin = process.platform === 'win32';
-        const cmd = isWin ? `"${ytdlpPath}" --get-title "${youtubeUrl}"` : `python3 "${ytdlpPath}" --get-title "${youtubeUrl}"`;
+        const cmd = `"${ytdlpPath}" --get-title "${youtubeUrl}"`;
         
         exec(cmd, (error, stdout, stderr) => {
             if (error) {
@@ -56,12 +55,21 @@ app.use(express.json());
 
 app.get('/api/test', (req, res) => {
     try {
-        const ls = execSync('ls -la').toString();
+        const isWin = process.platform === 'win32';
+        const lsCmd = isWin ? 'dir' : 'ls -la';
+        const ls = execSync(lsCmd).toString();
         const ytdlp = fs.existsSync(getYtdlpPath()) ? 'EXISTS' : 'MISSING';
-        const python = execSync('python3 --version').toString();
+        
+        let python = 'NOT CHECKED';
+        try {
+            python = execSync('python3 --version').toString();
+        } catch(e) {
+            python = 'NOT FOUND: ' + e.message;
+        }
+
         let ytdlpVer = 'ERROR';
         try {
-            ytdlpVer = execSync(`python3 ${getYtdlpPath()} --version`).toString();
+            ytdlpVer = execSync(`"${getYtdlpPath()}" --version`).toString();
         } catch(e) {
             ytdlpVer = e.message;
         }
@@ -88,17 +96,10 @@ app.get('/api/stream', (req, res) => {
     res.setHeader('Transfer-Encoding', 'chunked');
 
     const ytdlpPath = getYtdlpPath();
-    const isWin = process.platform === 'win32';
     
     // Spawns yt-dlp to output the audio straight to stdout (-)
-    const cmd = isWin ? ytdlpPath : 'python3';
-    const args = isWin ? [
-        '--no-playlist',
-        '-f', 'bestaudio[ext=m4a]/bestaudio',
-        '-o', '-',
-        youtubeUrl
-    ] : [
-        ytdlpPath,
+    const cmd = ytdlpPath;
+    const args = [
         '--no-playlist',
         '-f', 'bestaudio[ext=m4a]/bestaudio',
         '-o', '-',
