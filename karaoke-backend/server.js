@@ -84,7 +84,7 @@ app.get('/api/stream', (req, res) => {
 
     console.log(`🎵 Streaming audio for: ${youtubeUrl}`);
 
-    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Type', 'audio/mp4');
     res.setHeader('Transfer-Encoding', 'chunked');
 
     const ytdlpPath = getYtdlpPath();
@@ -94,13 +94,13 @@ app.get('/api/stream', (req, res) => {
     const cmd = isWin ? ytdlpPath : 'python3';
     const args = isWin ? [
         '--no-playlist',
-        '-f', 'bestaudio/best',
+        '-f', 'bestaudio[ext=m4a]/bestaudio',
         '-o', '-',
         youtubeUrl
     ] : [
         ytdlpPath,
         '--no-playlist',
-        '-f', 'bestaudio/best',
+        '-f', 'bestaudio[ext=m4a]/bestaudio',
         '-o', '-',
         youtubeUrl
     ];
