@@ -3,6 +3,8 @@ import { Play, Pause, Square, Volume2, Upload, Globe, RefreshCw } from 'lucide-r
 import { AudioVisualizer } from './AudioVisualizer';
 import { DEMO_SONGS } from './LrcEditor';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 interface MediaCenterProps {
   selectedSongId: string;
   onSongChange: (songId: string) => void;
@@ -498,7 +500,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     
     try {
       // 1. Fetch the automated lyrics FIRST before starting audio
-      const response = await fetch(`http://localhost:3001/api/lyrics?url=${encodeURIComponent(ytUrl)}`);
+      const response = await fetch(`${API_BASE_URL}/api/lyrics?url=${encodeURIComponent(ytUrl)}`);
       if (!response.ok) {
         throw new Error('Failed to fetch lyrics from backend API');
       }
@@ -525,7 +527,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
       }
 
       // 3. Lyrics are fully set and ready. Now load and play the audio stream
-      const audioSourceUrl = `http://localhost:3001/api/stream?url=${encodeURIComponent(ytUrl)}`;
+      const audioSourceUrl = `${API_BASE_URL}/api/stream?url=${encodeURIComponent(ytUrl)}`;
       if (audioRef.current) {
         handleStop(); // Reset current stream
         
@@ -544,7 +546,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     } catch (error) {
       console.error("YouTube streaming handshake failure:", error);
       setYtStatus('error');
-      alert("❌ PIPELINE HANDSHAKE FAILED!\n\nMake sure your Node.js backend is running at http://localhost:3001 and yt-dlp is installed, or try a different URL.");
+      alert(`❌ PIPELINE HANDSHAKE FAILED!\n\nMake sure your Node.js backend is running at ${API_BASE_URL} and yt-dlp is installed, or try a different URL.`);
     }
   };
 
