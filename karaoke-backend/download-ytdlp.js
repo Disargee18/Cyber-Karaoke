@@ -3,8 +3,19 @@ const path = require('path');
 const https = require('https');
 
 const isWin = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
+
+let releaseName = 'yt-dlp';
+if (isWin) {
+    releaseName = 'yt-dlp.exe';
+} else if (isMac) {
+    releaseName = 'yt-dlp_macos';
+} else {
+    releaseName = 'yt-dlp_linux';
+}
+
 const fileName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
-const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${fileName}`;
+const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${releaseName}`;
 const filePath = path.join(__dirname, fileName);
 
 if (!fs.existsSync(filePath)) {
