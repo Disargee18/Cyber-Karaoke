@@ -18,40 +18,37 @@ const fileName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
 const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${releaseName}`;
 const filePath = path.join(__dirname, fileName);
 
-if (!fs.existsSync(filePath)) {
+if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
     console.log(`Downloading ${fileName}...`);
-    const file = fs.createWriteStream(filePath);
     
-    https.get(url, (response) => {
-        if (response.statusCode === 301 || response.statusCode === 302) {
-            // Follow redirect
-            https.get(response.headers.location, (redirectResponse) => {
-                redirectResponse.pipe(file);
-                file.on('finish', () => {
-                    file.close();
-                    if (!isWin) {
-                        fs.chmodSync(filePath, '755'); // Make executable on Linux/Mac
-                    }
-                    console.log(`Successfully downloaded ${fileName}`);
-                });
+    if (!isWin) {
+        // On Linux/Mac, use wget/curl which perfectly handle multiple redirects
+        try {
+            const { execSync } = require('child_process');
+            execSync(`wget -qO ${filePath} ${url} || curl -Lo ${filePath} ${url}`, { stdio: 'inherit' });
+            fs.chmodSync(filePath, '755');
+            console.log(`Successfully downloaded ${fileName} via wget/curl`);
+        } catch(e) {
+            console.error(`Failed to download via wget/curl:`, e.message);
+        }
+    } else {
+        // Windows fallback (simple redirect follower)
+        const file = fs.createWriteStream(filePath);
+        const getWithRedirects = (reqUrl) => {
+            https.get(reqUrl, (response) => {
+                if ([301, 302, 307, 308].includes(response.statusCode)) {
+                    getWithRedirects(response.headers.location);
+                } else {
+                    response.pipe(file);
+                    file.on('finish', () => { file.close(); console.log(`Successfully downloaded ${fileName}`); });
+                }
             }).on('error', (err) => {
                 fs.unlink(filePath, () => {});
                 console.error(`Error downloading: ${err.message}`);
             });
-        } else {
-            response.pipe(file);
-            file.on('finish', () => {
-                file.close();
-                if (!isWin) {
-                    fs.chmodSync(filePath, '755');
-                }
-                console.log(`Successfully downloaded ${fileName}`);
-            });
-        }
-    }).on('error', (err) => {
-        fs.unlink(filePath, () => {});
-        console.error(`Error downloading: ${err.message}`);
-    });
+        };
+        getWithRedirects(url);
+    }
 } else {
     console.log(`${fileName} already exists. Skipping download.`);
 }
