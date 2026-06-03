@@ -49,11 +49,11 @@ async function getYoutubeVideoTitle(youtubeUrl) {
     // Attempt 2: Fallback to non-blocking yt-dlp exec (does not block Node event loop)
     return new Promise((resolve, reject) => {
         const ytdlpPath = getYtdlpPath();
-        let cmd = `"${ytdlpPath}" --js-runtimes "${process.execPath}"`;
+        let cmd = `"${ytdlpPath}" --js-runtimes "node:${process.execPath}"`;
         if (activeCookiesPath) {
             cmd += ` --cookies "${activeCookiesPath}"`;
         } else {
-            cmd += ` --extractor-args "youtube:player_client=web"`;
+            cmd += ` --extractor-args "youtube:player_client=android"`;
         }
         cmd += ` --get-title "${youtubeUrl}"`;
         
@@ -121,15 +121,15 @@ app.get('/api/stream', (req, res) => {
     const cmd = ytdlpPath;
     const args = [
         '--no-playlist',
-        '--js-runtimes', process.execPath
+        '--js-runtimes', `node:${process.execPath}`
     ];
     if (activeCookiesPath) {
         args.push('--cookies', activeCookiesPath);
     } else {
-        args.push('--extractor-args', 'youtube:player_client=web');
+        args.push('--extractor-args', 'youtube:player_client=android');
     }
     args.push(
-        '-f', 'bestaudio[ext=m4a]/bestaudio',
+        '-f', '18/bestaudio/best',
         '-o', '-',
         youtubeUrl
     );
