@@ -35,7 +35,7 @@ async function getYoutubeVideoTitle(youtubeUrl) {
     // Attempt 2: Fallback to non-blocking yt-dlp exec (does not block Node event loop)
     return new Promise((resolve, reject) => {
         const ytdlpPath = getYtdlpPath();
-        const cmd = `"${ytdlpPath}" --get-title "${youtubeUrl}"`;
+        const cmd = `"${ytdlpPath}" --js-runtimes node --extractor-args "youtube:player_client=ios" --get-title "${youtubeUrl}"`;
         
         exec(cmd, (error, stdout, stderr) => {
             if (error) {
@@ -101,6 +101,8 @@ app.get('/api/stream', (req, res) => {
     const cmd = ytdlpPath;
     const args = [
         '--no-playlist',
+        '--js-runtimes', 'node',
+        '--extractor-args', 'youtube:player_client=ios',
         '-f', 'bestaudio[ext=m4a]/bestaudio',
         '-o', '-',
         youtubeUrl
