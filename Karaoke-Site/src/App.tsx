@@ -5,6 +5,7 @@ import { MediaCenter } from './components/MediaCenter';
 import { DEMO_SONGS } from './components/LrcEditor';
 import { CyberTutorial } from './components/CyberTutorial';
 import { LyricsDisplay } from './components/LyricsDisplay';
+import { YouTubePlayer, type YouTubePlayerHandle } from './components/YouTubePlayer';
 import { Music, Video, Radio, Tv, MonitorPlay, BookOpen } from 'lucide-react';
 
 interface LyricLine {
@@ -24,6 +25,10 @@ function App() {
   const [customSongTitle, setCustomSongTitle] = useState('CUSTOM UPLOAD');
   const [filter, setFilter] = useState<'none' | 'vaporwave' | 'matrix' | 'crt-glitch' | 'sepia'>('crt-glitch');
   const [isMirrored, setIsMirrored] = useState(true);
+  const [ytVideoId, setYtVideoId] = useState<string | null>(null);
+  const [ytDuration, setYtDuration] = useState(0);
+  const [isYtPoppedOut, setIsYtPoppedOut] = useState(false);
+  const ytPlayerRef = useRef<YouTubePlayerHandle>(null);
 
   // Window State Manager (Position, Open/Closed, Minimized)
   const [windows, setWindows] = useState({
@@ -31,6 +36,7 @@ function App() {
     lyrics: { isOpen: true, isMinimized: false, title: 'Karaoke Lyrics Stage', defaultX: 375, defaultY: 20 },
     lrcEditor: { isOpen: false, isMinimized: false, title: 'Cyber Stage Help Book', defaultX: 800, defaultY: 375 },
     webcamStage: { isOpen: true, isMinimized: false, title: 'Cyber Camera Monitor', defaultX: 800, defaultY: 20 },
+    ytVideo: { isOpen: false, isMinimized: false, title: 'YouTube Stage', defaultX: 375, defaultY: 380 },
   });
 
   const [startMenuOpen, setStartMenuOpen] = useState(false);
@@ -145,12 +151,20 @@ function App() {
     }));
   };
 
+  const toggleYtPopOut = () => {
+    setIsYtPoppedOut(!isYtPoppedOut);
+    if (!isYtPoppedOut) {
+      setWindows(prev => ({ ...prev, ytVideo: { ...prev.ytVideo, isOpen: true, isMinimized: false } }));
+    }
+  };
+
   const resetWindowLayout = () => {
     setWindows({
       mediaPlayer: { isOpen: true, isMinimized: false, title: 'Winamp Media Rack', defaultX: 20, defaultY: 20 },
       lyrics: { isOpen: true, isMinimized: false, title: 'Karaoke Lyrics Stage', defaultX: 375, defaultY: 20 },
       lrcEditor: { isOpen: false, isMinimized: false, title: 'Cyber Stage Help Book', defaultX: 800, defaultY: 375 },
       webcamStage: { isOpen: true, isMinimized: false, title: 'Cyber Camera Monitor', defaultX: 800, defaultY: 20 },
+      ytVideo: { isOpen: false, isMinimized: false, title: 'YouTube Stage', defaultX: 375, defaultY: 380 },
     });
     setStartMenuOpen(false);
   };
@@ -348,6 +362,20 @@ function App() {
               </span>
             </button>
           )}
+
+          {!windows.ytVideo.isOpen && (
+            <button
+              onClick={() => toggleWindow('ytVideo')}
+              className="flex flex-col items-center gap-1 group w-20 cursor-pointer"
+            >
+              <div className="w-12 h-12 bg-[#c0c0c0]/10 hover:bg-[#c0c0c0]/30 active:scale-95 transition-all rounded flex items-center justify-center border border-white/20 shadow-lg p-2.5">
+                <MonitorPlay size={28} className="text-[#ff0000] drop-shadow-[0_0_4px_#ff0000]" />
+              </div>
+              <span className="text-[10px] font-bold text-shadow-[1px_1px_2px_#000000] truncate max-w-full">
+                YT Stage
+              </span>
+            </button>
+          )}
         </div>
 
         {/* DRAGGABLE RETRO WINDOW 1: WINAMP MEDIA PLAYER */}
@@ -380,6 +408,13 @@ function App() {
               lyrics={lyrics}
               customSongTitle={customSongTitle}
               setCustomSongTitle={setCustomSongTitle}
+              ytVideoId={ytVideoId}
+              onYtVideoIdChange={setYtVideoId}
+              ytDuration={ytDuration}
+              onYtDurationChange={setYtDuration}
+              ytPlayerRef={ytPlayerRef}
+              isYtPoppedOut={isYtPoppedOut}
+              onToggleYtPopOut={toggleYtPopOut}
             />
           </RetroWindow>
         )}
@@ -465,8 +500,8 @@ function App() {
                     key={f}
                     onClick={() => setFilter(f)}
                     className={`py-1 text-[9px] font-black border uppercase tracking-tighter cursor-pointer ${filter === f
-                        ? 'bg-yellow-400 text-black border-yellow-200 shadow-inner'
-                        : 'bg-[#c0c0c0] hover:bg-[#dfdfdf] text-black border-t-white border-l-white border-r-[#555] border-b-[#555]'
+                      ? 'bg-yellow-400 text-black border-yellow-200 shadow-inner'
+                      : 'bg-[#c0c0c0] hover:bg-[#dfdfdf] text-black border-t-white border-l-white border-r-[#555] border-b-[#555]'
                       }`}
                   >
                     {f === 'none' ? 'NORMAL' : f.replace('-glitch', '').toUpperCase()}
@@ -474,6 +509,49 @@ function App() {
                 ))}
               </div>
             </div>
+          </RetroWindow>
+        )}
+
+        {/* DRAGGABLE RETRO WINDOW 6: YOUTUBE STAGE */}
+        {isYtPoppedOut && windows.ytVideo.isOpen && (
+          <RetroWindow
+            title={windows.ytVideo.title}
+            onClose={() => {
+              toggleWindow('ytVideo');
+              setIsYtPoppedOut(false);
+            }}
+            onMinimize={() => minimizeWindow('ytVideo')}
+            isMinimized={windows.ytVideo.isMinimized}
+            defaultX={windows.ytVideo.defaultX}
+            defaultY={windows.ytVideo.defaultY}
+            widthClass="w-full max-w-[440px] sm:w-[440px]"
+            icon={<MonitorPlay size={14} />}
+            isResizable={true}
+            defaultWidth={440}
+            defaultHeight={340}
+            dragConstraints={desktopRef}
+          >
+            {ytVideoId ? (
+              <div className="w-full h-full relative group">
+                <YouTubePlayer
+                  ref={ytPlayerRef}
+                  videoId={ytVideoId}
+                  onTimeUpdate={setCurrentTime}
+                  onDurationUpdate={setYtDuration}
+                  initialTime={currentTime}
+                />
+                {/* Pop In overlay */}
+                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                  <button onClick={() => { setIsYtPoppedOut(false); toggleWindow('ytVideo'); }} className="retro-button text-[9px] px-1 py-0.5">
+                    ↙ RETURN TO RACK
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full h-full bg-black flex items-center justify-center text-[#ff00ff] font-mono text-sm border-2 border-[#ff00ff] animate-pulse">
+                AWAITING YOUTUBE LINK...
+              </div>
+            )}
           </RetroWindow>
         )}
       </div>
@@ -491,8 +569,8 @@ function App() {
           <button
             onClick={() => setStartMenuOpen(!startMenuOpen)}
             className={`h-7 px-2 font-black select-none text-xs flex items-center gap-1.5 border border-t-white border-l-white border-r-[#404040] border-b-[#404040] ${startMenuOpen
-                ? 'bg-[#a0a0a0] border-t-[#404040] border-l-[#404040] border-r-white border-b-white shadow-inner'
-                : 'bg-[#c0c0c0] hover:bg-[#dfdfdf]'
+              ? 'bg-[#a0a0a0] border-t-[#404040] border-l-[#404040] border-r-white border-b-white shadow-inner'
+              : 'bg-[#c0c0c0] hover:bg-[#dfdfdf]'
               }`}
             style={{
               boxShadow: startMenuOpen ? 'none' : '1px 1px 0px #000',
@@ -514,8 +592,8 @@ function App() {
               <button
                 onClick={() => minimizeWindow('mediaPlayer')}
                 className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${windows.mediaPlayer.isMinimized
-                    ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
-                    : 'bg-[#dfdfdf]'
+                  ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
+                  : 'bg-[#dfdfdf]'
                   }`}
               >
                 <Music size={10} className="text-[#00ffcc] drop-shadow-[0_0_1px_#00ffcc]" />
@@ -528,8 +606,8 @@ function App() {
               <button
                 onClick={() => minimizeWindow('lyrics')}
                 className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${windows.lyrics.isMinimized
-                    ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
-                    : 'bg-[#dfdfdf]'
+                  ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
+                  : 'bg-[#dfdfdf]'
                   }`}
               >
                 <Radio size={10} className="text-yellow-500" />
@@ -542,8 +620,8 @@ function App() {
               <button
                 onClick={() => minimizeWindow('lrcEditor')}
                 className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${windows.lrcEditor.isMinimized
-                    ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
-                    : 'bg-[#dfdfdf]'
+                  ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
+                  : 'bg-[#dfdfdf]'
                   }`}
               >
                 <BookOpen size={10} className="text-pink-500" />
@@ -558,12 +636,26 @@ function App() {
               <button
                 onClick={() => minimizeWindow('webcamStage')}
                 className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${windows.webcamStage.isMinimized
-                    ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
-                    : 'bg-[#dfdfdf]'
+                  ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
+                  : 'bg-[#dfdfdf]'
                   }`}
               >
                 <Video size={10} className="text-[#ff00ff]" />
                 <span>Webcam Stage</span>
+              </button>
+            )}
+
+            {/* YT Stage Task */}
+            {isYtPoppedOut && windows.ytVideo.isOpen && (
+              <button
+                onClick={() => minimizeWindow('ytVideo')}
+                className={`h-7 px-2 font-bold max-w-[110px] truncate border border-t-white border-l-white border-r-[#404040] border-b-[#404040] flex items-center gap-1 ${windows.ytVideo.isMinimized
+                  ? 'bg-[#a0a0a0] border-t-neutral-800 border-l-neutral-800 border-r-white border-b-white'
+                  : 'bg-[#dfdfdf]'
+                  }`}
+              >
+                <MonitorPlay size={10} className="text-[#ff0000]" />
+                <span>YT Stage</span>
               </button>
             )}
           </div>
@@ -622,6 +714,7 @@ function App() {
                       lyrics: { isOpen: true, isMinimized: false, title: 'Karaoke Lyrics Stage', defaultX: 375, defaultY: 20 },
                       lrcEditor: { isOpen: true, isMinimized: false, title: 'Cyber Stage Help Book', defaultX: 800, defaultY: 375 },
                       webcamStage: { isOpen: true, isMinimized: false, title: 'Cyber Camera Monitor', defaultX: 800, defaultY: 20 },
+                      ytVideo: { isOpen: true, isMinimized: false, title: 'YouTube Stage', defaultX: 375, defaultY: 380 },
                     });
                     setStartMenuOpen(false);
                   }}

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Play, Pause, Square, Volume2, Upload, Globe, RefreshCw } from 'lucide-react';
 import { AudioVisualizer } from './AudioVisualizer';
+import { YouTubePlayer, type YouTubePlayerHandle } from './YouTubePlayer';
 import { DEMO_SONGS } from './LrcEditor';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -13,6 +14,13 @@ interface MediaCenterProps {
   lyrics: { time: number; text: string }[];
   customSongTitle: string;
   setCustomSongTitle: (title: string) => void;
+  ytVideoId: string | null;
+  onYtVideoIdChange: (id: string | null) => void;
+  ytDuration: number;
+  onYtDurationChange: (duration: number) => void;
+  ytPlayerRef: React.RefObject<YouTubePlayerHandle>;
+  isYtPoppedOut: boolean;
+  onToggleYtPopOut: () => void;
 }
 
 export const MediaCenter: React.FC<MediaCenterProps> = ({
@@ -23,6 +31,13 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
   lyrics,
   customSongTitle,
   setCustomSongTitle,
+  ytVideoId,
+  onYtVideoIdChange,
+  ytDuration,
+  onYtDurationChange,
+  ytPlayerRef,
+  isYtPoppedOut,
+  onToggleYtPopOut,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -198,10 +213,23 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     }
   }, [selectedSongId]);
 
+  const isYtMode = selectedSongId === 'youtube';
+
   // Handle Play/Pause
   const handlePlayPause = async () => {
     if (!hasValidLyrics()) {
       alert("⚠️ PLAYBACK LOCKED!\n\nKaraoke stage requires lyrics before you can play the music. Please upload a local cassette tape or enter a streaming YouTube link in the Winamp Rack tabs to load synced lyrics first!");
+      return;
+    }
+
+    if (isYtMode) {
+      if (isPlaying) {
+        ytPlayerRef.current?.pause();
+        setIsPlaying(false);
+      } else {
+        ytPlayerRef.current?.play();
+        setIsPlaying(true);
+      }
       return;
     }
 
@@ -241,7 +269,9 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     setCurrentTimeState(0);
     onTimeUpdate(0);
 
-    if (isSynthMode) {
+    if (isYtMode) {
+      ytPlayerRef.current?.stop();
+    } else if (isSynthMode) {
       stopProceduralSynth();
     } else if (audioRef.current) {
       audioRef.current.pause();
@@ -275,7 +305,10 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     const time = parseFloat(e.target.value);
     setCurrentTimeState(time);
     onTimeUpdate(time);
-    if (isSynthMode) {
+    
+    if (isYtMode) {
+      ytPlayerRef.current?.seekTo(time);
+    } else if (isSynthMode) {
       synthTimeRef.current = time;
       synthStepRef.current = Math.floor(time / 0.18);
     } else if (audioRef.current) {
@@ -531,22 +564,29 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
         setCustomSongTitle(resolvedTitle);
       }
 
-      // 3. Lyrics are fully set and ready. Now load and play the audio stream
-      const audioSourceUrl = `${API_BASE_URL}/api/stream?url=${encodeURIComponent(ytUrl)}`;
+      // 3. Lyrics are fully set and ready. Now load the embed
+      let videoId = '';
+      try {
+        const urlObj = new URL(ytUrl);
+        videoId = urlObj.searchParams.get('v') || '';
+        if (!videoId && urlObj.hostname === 'youtu.be') {
+          videoId = urlObj.pathname.slice(1);
+        }
+      } catch (e) {}
+
+      if (!videoId) {
+        alert("Could not extract YouTube video ID from URL.");
+        setYtStatus('error');
+        return;
+      }
+
       if (audioRef.current) {
         handleStop(); // Reset current stream
-        
-        onSongChange('custom'); // Flag song selection as custom
-        audioRef.current.src = audioSourceUrl;
-        audioRef.current.load();
-        
-        // Calibrate Web Audio context
-        initAudioEngine();
-        
-        // Play the stream
-        await audioRef.current.play();
-        setIsPlaying(true);
       }
+      
+      onSongChange('youtube'); // Flag song selection as youtube
+      onYtVideoIdChange(videoId);
+      
       setYtStatus('streaming');
     } catch (error) {
       console.error("YouTube streaming handshake failure:", error);
@@ -567,6 +607,9 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     if (selectedSongId === 'procedural-synth') {
       return `⚡ SEQUENCER: BEEP BOOP 8-BIT SYNTH [WEB AUDIO API SYNTH] ⚡`;
     }
+    if (selectedSongId === 'youtube') {
+      return `🎶 PLAYING: ${customSongTitle.toUpperCase()} 🎶`;
+    }
     if (selectedSongId === 'custom') {
       return `🎶 PLAYING: ${customSongTitle.toUpperCase()} 🎶`;
     }
@@ -579,8 +622,26 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
 
   return (
     <div className="flex flex-col gap-4 font-mono text-xs select-none">
-      {/* Visualizer Canvas container */}
-      <AudioVisualizer analyser={analyserState} />
+      {/* Visualizer Canvas or Inline YouTube Player */}
+      {isYtMode && !isYtPoppedOut && ytVideoId ? (
+        <div className="relative w-full h-[150px] group bg-black border-2 border-white/20 shadow-inner">
+          <YouTubePlayer 
+            ref={ytPlayerRef}
+            videoId={ytVideoId}
+            onTimeUpdate={(t) => { setCurrentTimeState(t); onTimeUpdate(t); }}
+            onDurationUpdate={onYtDurationChange}
+            initialTime={currentTimeState}
+          />
+          {/* Pop Out overlay */}
+          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            <button onClick={onToggleYtPopOut} className="retro-button text-[9px] px-1 py-0.5 shadow-md">
+              ↗ POP OUT TO DESKTOP
+            </button>
+          </div>
+        </div>
+      ) : (
+        <AudioVisualizer analyser={analyserState} />
+      )}
 
       {/* Winamp Metadata Banner / Scrolling Song Title */}
       <div
@@ -597,7 +658,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
           </div>
         </div>
         <div className="text-[10px] text-pink-500 font-extrabold bg-[#220022] px-1 ml-2 border border-pink-500 select-none z-10 shrink-0">
-          {formatTime(currentTimeState)} / {formatTime(duration)}
+          {formatTime(currentTimeState)} / {formatTime(isYtMode && ytDuration ? ytDuration : duration)}
         </div>
       </div>
 
@@ -607,7 +668,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
         <input
           type="range"
           min={0}
-          max={duration || 100}
+          max={isYtMode && ytDuration ? ytDuration : (duration || 100)}
           step={0.1}
           value={currentTimeState}
           onChange={handleScrub}
@@ -685,9 +746,14 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
           </button>
         </div>
         
-        {vocalRemover && (
+        {vocalRemover && !isYtMode && (
           <div className="text-[10px] text-pink-600 bg-pink-100 p-1.5 font-bold text-left border border-pink-300">
             ⚠️ NOTICE: Lead vocals in stereo mix are inverted & canceled. Sub-bass and stereo reverbs remain. Works best on stereo audio uploads!
+          </div>
+        )}
+        {isYtMode && (
+          <div className="text-[10px] text-neutral-500 bg-neutral-200 p-1.5 font-bold text-left border border-neutral-400">
+            ⚠️ UNAVAILABLE: Web Audio API cannot process cross-origin iframe audio. Works with local file uploads.
           </div>
         )}
       </div>
@@ -783,7 +849,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
                 </button>
               </div>
               <span className="text-[8px] text-neutral-500 text-left">
-                * Note: Standard Node.js backend streams audio via a free yt-dlp pipe. This mockup plays our synthwave demo with simulated pipeline data.
+                * Note: Video and audio will play in the YouTube Stage window.
               </span>
             </form>
           )}
