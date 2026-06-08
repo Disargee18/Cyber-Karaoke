@@ -18,7 +18,7 @@ interface MediaCenterProps {
   onYtVideoIdChange: (id: string | null) => void;
   ytDuration: number;
   onYtDurationChange: (duration: number) => void;
-  ytPlayerRef: React.RefObject<YouTubePlayerHandle>;
+  ytPlayerRef: React.RefObject<YouTubePlayerHandle | null>;
   isYtPoppedOut: boolean;
   onToggleYtPopOut: () => void;
 }
